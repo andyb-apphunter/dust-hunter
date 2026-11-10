@@ -9,6 +9,19 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#EEF6F5">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23CDECEE'/%3E%3Cpath d='M32 10l5 15 15 5-15 5-5 15-5-15-15-5 15-5z' fill='%232F9AA3'/%3E%3Ccircle cx='48' cy='48' r='5' fill='%23CC5F8C'/%3E%3C/svg%3E">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script>
+/* Firebase settings for this household's project (not secret). */
+window.FIREBASE_CONFIG={
+  apiKey:"AIzaSyBOoRP9oQgEVYcMWEOzbzVN-VmuXlzF0Mw",
+  authDomain:"dust-hunter-b1ec3.firebaseapp.com",
+  projectId:"dust-hunter-b1ec3",
+  storageBucket:"dust-hunter-b1ec3.firebasestorage.app",
+  messagingSenderId:"554169146086",
+  appId:"1:554169146086:web:619063d016f48f69543927"
+};
+</script>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap">
 <style>
 /* Same pastel family as Habit Hunter, with a teal "clean" accent. One thumb-reach column, tabs along the bottom. */
@@ -101,6 +114,8 @@ textarea { resize:vertical; min-height:72px; display:block; }
 .status { background:var(--blue); border-radius:12px; padding:8px 12px; font-size:14px; }
 .status.bad { background:var(--pink); }
 .empty { text-align:center; padding:22px 14px; display:flex; flex-direction:column; align-items:center; gap:8px; }
+body.gate nav { display:none; }
+.stack { display:flex; flex-direction:column; gap:10px; }
 .foot { display:flex; justify-content:flex-end; gap:8px; flex-wrap:wrap; }
 .pill { font-size:12px; font-weight:800; padding:4px 10px; border-radius:10px; background:var(--card); border:1px solid var(--line); color:var(--muted); min-height:32px; }
 .pill.ok { color:var(--acc-strong); }
@@ -172,25 +187,36 @@ const SEED=[
  {id:"t-car",name:"Clean car inside",cat:"car",freq:{type:"fixed",days:30},notes:"Take everything out, vacuum seats, footwells, under the mats and the boot. Wipe down the dash."}
 ];
 
-/* ===================== storage & merge ===================== */
-const LS="dusthunter.data.v1", LSS="dusthunter.sync.v1", FILE="dust-hunter.json", COLLS=["tasks","done","plans","people","feedback","meta"];
+/* ===================== storage ===================== */
+/* All data lives in the household's Firebase database. Records are grouped into a few documents:
+   tasks, people, feedback, meta, done-YYYY and plans-YYYY. Each record keeps "u" (last changed). */
+const COLLS=["tasks","done","plans","people","feedback","meta"];
 const empty=()=>({tasks:{},done:{},plans:{},people:{},feedback:{},meta:{}});
 const readJSON=k=>{try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}};
-const writeJSON=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){toast("This phone's storage is full, so that wasn't saved.")}};
 function normal(x){const o=empty();if(x&&typeof x==="object")for(const c of COLLS)if(x[c]&&typeof x[c]==="object")o[c]={...x[c]};return o}
-/* Each record keeps its own "u" (last changed) time; the newer copy wins. Deletes are kept as del:true so they sync too. */
 function merge(a,b){const o=empty();for(const c of COLLS){o[c]={...a[c]};for(const[k,v]of Object.entries(b[c]||{}))if(!o[c][k]||(v.u||0)>(o[c][k].u||0))o[c][k]=v}return o}
-const canon=o=>Array.isArray(o)?"["+o.map(canon).join(",")+"]":o&&typeof o==="object"?"{"+Object.keys(o).filter(k=>o[k]!==undefined).sort().map(k=>JSON.stringify(k)+":"+canon(o[k])).join(",")+"}":JSON.stringify(o);
-
-let D=normal(readJSON(LS));
-if(!localStorage.getItem(LS)){for(const t of SEED)D.tasks[t.id]={...t,u:1};writeJSON(LS,D)}
-let SY=Object.assign({token:"",gist:"",last:0,state:"",msg:""},readJSON(LSS)||{});
-const saveSync=()=>writeJSON(LSS,{token:SY.token,gist:SY.gist,last:SY.last});
+let D=empty(), FB=null;
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
-function put(coll,obj){obj.u=Date.now();D[coll][obj.id]=obj;writeJSON(LS,D);queueSync()}
+const recKey=(coll,o)=>coll==="done"?"done-"+String(o.date).slice(0,4):coll==="plans"?"plans-"+String(o.week).slice(0,4):coll;
+function saveErr(e){toast(e&&e.code==="permission-denied"?"You no longer have access to this household.":"That didn't save. Check your connection and try again.")}
+function put(coll,obj){
+  obj.u=Date.now();D[coll][obj.id]=obj;
+  if(!FB||!S.hid)return;
+  S.pending++;pill();
+  FB.write(S.hid,recKey(coll,obj),{[obj.id]:obj}).catch(saveErr).finally(()=>{S.pending--;pill()});
+}
+function importData(x){
+  const before=D,m=merge(D,normal(x)),groups={};
+  for(const c of COLLS)for(const[k,o]of Object.entries(m[c]))if(before[c][k]!==o){const g=recKey(c,o);(groups[g]=groups[g]||{})[k]=o}
+  D=m;render(true);
+  S.pending++;pill();
+  return Promise.all(Object.entries(groups).map(([g,r])=>FB.write(S.hid,g,r))).finally(()=>{S.pending--;pill()});
+}
+const seedRecords=()=>Object.fromEntries(SEED.map(t=>[t.id,{...t,u:1}]));
 
 /* ===================== reading the data ===================== */
-const S={tab:"Week",today:localToday(),week:monday(localToday()),sheet:null,form:null,histLimit:60,confirmDel:null,toastActs:[]};
+const S={tab:"Week",today:localToday(),week:monday(localToday()),sheet:null,form:null,histLimit:60,confirmDel:null,toastActs:[],
+  auth:"loading",user:null,hid:null,house:null,pending:0,err:"",linkSent:"",installEvt:null};
 const tasks=()=>Object.values(D.tasks).filter(t=>!t.del).sort((a,b)=>a.name.localeCompare(b.name));
 const people=()=>Object.values(D.people).filter(p=>!p.del).sort((a,b)=>(a.created||0)-(b.created||0));
 const personC=id=>{const p=D.people[id];return p?p.c:5};
@@ -243,8 +269,9 @@ const $=id=>document.getElementById(id);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c]);
 const TICK='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const TABS=["Week","Tasks","History","Settings","About"];
-const VERSION="1.1.0";
+const VERSION="2.0.0";
 const CHANGES=[
+ ["2.0.0","Nov 2026",["Installs as an app on phones and laptops, and works offline","Everyone signs in with their own Google account or email","Invite-only households of up to 4, managed in Settings → Household","Changes show on everyone's devices within seconds"]],
  ["1.1.0","10 Nov 2026",["About tab with version and release notes","Feedback: write ideas in the app, see everyone's list, email it or copy it to Claude","Copy / paste backup that works everywhere","Shared data lives on GitHub, so clearing the browser can't lose it"]],
  ["1.0.0","8 Nov 2026",["First version: weekly job list (Mon–Sun), plan a day and people per job","Due dates count from when a job was last done; lawn, fans, cobwebs and weeding follow the Sydney seasons","Skip this time, dog wash offers to tick the dog bed, history and editing"]]
 ];
@@ -253,24 +280,25 @@ const metaGet=()=>{const m=D.meta.settings;return m&&!m.del?m:{id:"settings"}};
 function typingInView(){const a=document.activeElement;return a&&$("view").contains(a)&&/^(TEXTAREA|INPUT|SELECT)$/.test(a.tagName)}
 function render(force){
   if(!force&&typingInView())return;
+  document.body.classList.toggle("gate",S.auth!=="ready");
+  if(S.auth!=="ready"){$("tabs").innerHTML="";$("view").innerHTML=viewGate();return}
   const sc=window.scrollY;
   $("tabs").innerHTML=TABS.map(t=>`<button data-act="tab" data-v="${t}" ${t===S.tab?'aria-current="page"':""}>${t}</button>`).join("");
   $("view").innerHTML=({Week:viewWeek,Tasks:viewTasks,History:viewHistory,Settings:viewSettings,About:viewAbout})[S.tab]();
   window.scrollTo(0,sc);
 }
-function syncPill(){
-  if(CDB){if(SY.state==="busy")return`<span class="pill">Saving…</span>`;if(SY.state==="error")return`<button class="pill bad" data-act="syncNow">Not saved, tap to retry</button>`;return`<span class="pill ok">✓ Saved</span>`}
-  if(!SY.token||!SY.gist)return`<button class="pill" data-act="tab" data-v="Settings">Not shared yet</button>`;
-  if(SY.state==="busy")return`<span class="pill">Syncing…</span>`;
-  if(SY.state==="error")return`<button class="pill bad" data-act="syncNow">Sync failed, tap to retry</button>`;
-  return`<button class="pill ok" data-act="syncNow">✓ Synced${SY.last?" "+new Date(SY.last).toLocaleTimeString([], {hour:"numeric",minute:"2-digit"}):""}</button>`;
+function statusPill(){
+  if(!navigator.onLine)return`<span class="pill bad" id="pill">Offline · saved here</span>`;
+  if(S.pending>0)return`<span class="pill" id="pill">Saving…</span>`;
+  return`<span class="pill ok" id="pill">✓ Synced</span>`;
 }
+function pill(){const el=$("pill");if(el)el.outerHTML=statusPill()}
 
 function viewWeek(){
   const W=S.week,sun=addDays(W,6),thisMon=monday(S.today),past=W<thisMon,isThis=W===thisMon;
   const title=isThis?"This week":W===addDays(thisMon,7)?"Next week":W===addDays(thisMon,-7)?"Last week":`Week of ${dm(W)}`;
   const{due,done}=weekItems(W);
-  let h=`<div class="head"><h1>${title}</h1>${syncPill()}</div>
+  let h=`<div class="head"><h1>${title}</h1>${statusPill()}</div>
   <div class="weekbar"><button class="btn ghost icon" data-act="wk" data-v="-7" aria-label="Previous week">‹</button>
    <span class="range">${short(W)} – ${short(sun)}</span>
    <button class="btn ghost icon" data-act="wk" data-v="7" aria-label="Next week">›</button>
@@ -350,42 +378,57 @@ function viewHistory(){
 }
 
 function viewSettings(){
-  const ps=people(),on=SY.token&&SY.gist;
-  let h=`<div class="head"><h1>Settings</h1></div>
-  <div class="card"><h2>People</h2><div class="muted small">Who can be put on a job each week. Jobs aren't tied to anyone permanently.</div>
+  const ps=people(),H=S.house||{members:[]},mem=H.members||[],owner=H.owner===S.user.uid;
+  let h=`<div class="head"><h1>Settings</h1>${statusPill()}</div>
+  <div class="card"><h2>People</h2><div class="muted small">Names you can put on a job each week (kids included). Jobs aren't tied to anyone permanently.</div>
    <div class="chips" style="margin-top:10px">${ps.map(p=>`<span class="chip c${p.c}">${esc(p.name)} <button class="linkish" style="min-height:28px;padding:0 2px" data-act="rmPerson" data-p="${p.id}" aria-label="Remove ${esc(p.name)}">✕</button></span>`).join("")||`<span class="muted small">No one added yet.</span>`}</div>
    <div class="row" style="margin-top:10px"><input class="grow" type="text" id="pName" maxlength="30" placeholder="Name, e.g. Andrew" aria-label="New person's name"><button class="btn" data-act="addPerson">Add</button></div></div>
-  <div class="card"><h2>Share between phones</h2>`;
-  if(CDB){
-    h+=`<div class="muted small" style="margin-top:6px">Trial version: everything saves to your Claude account, so it's on any device where you're signed in to Claude. To share with someone who doesn't use Claude, move to the GitHub version: <b>Copy backup</b> here, then <b>Paste a backup</b> there.</div>`;
-  }else if(on){
-    h+=`<div class="muted small" style="margin:6px 0 10px">This phone is linked to your shared Dust Hunter data. Changes sync automatically when you open the app and after each change.</div>
-     <div class="status ${SY.state==="error"?"bad":""}">${SY.state==="error"?esc(SY.msg):SY.last?`Last synced ${new Date(SY.last).toLocaleString([], {weekday:"short",hour:"numeric",minute:"2-digit"})}`:"Not synced yet"}</div>
-     <div class="foot" style="margin-top:10px;justify-content:flex-start"><button class="btn" data-act="syncNow">Sync now</button><button class="btn blue" data-act="shareSetup">Send setup link to another phone</button></div>
-     <div class="muted small" style="margin-top:8px">Use the same link on any phone or laptop. It contains your access key, so send it only to family, privately, and keep a copy somewhere safe (e.g. a private note): it's how any device reconnects if its browser is cleared.</div>
-     <div class="foot" style="margin-top:8px;justify-content:flex-start"><button class="btn ghost slim" data-act="unlink">${S.confirmDel==="unlink"?"Tap again to unlink":"Unlink this phone"}</button></div>`;
-  }else{
-    h+=`<div class="muted small" style="margin:6px 0 10px">Paste a GitHub access key (classic token with only the <b>gist</b> box ticked). Then tap <b>Create shared data</b> on the first phone, and send the setup link to the second phone.</div>
-     <div class="field"><label class="label" for="sToken">GitHub access key</label><input type="password" id="sToken" autocomplete="off" value="${esc(SY.token)}" placeholder="ghp_…"></div>
-     <div class="field" style="margin-top:8px"><label class="label" for="sGist">Shared data ID (only if it already exists)</label><input type="text" id="sGist" autocomplete="off" value="${esc(SY.gist)}" placeholder="Leave blank on the first phone"></div>
-     <div class="err" id="sErr">${SY.state==="error"?esc(SY.msg):""}</div>
-     <div class="foot" style="justify-content:flex-start"><button class="btn" data-act="createGist">Create shared data</button><button class="btn ghost" data-act="linkGist">Link to existing</button></div>`;
-  }
-  h+=`</div>
-  <div class="card"><h2>Backup</h2><div class="muted small" style="margin:6px 0 10px">Copy or save everything, and load it back in elsewhere. Loading merges with what's here; it never wipes anything.</div>
-   <div class="foot" style="justify-content:flex-start"><button class="btn ghost" data-act="copyBackup">Copy backup</button><button class="btn ghost" data-act="pasteBackup">Paste a backup</button>
-   ${CDB?"":`<button class="btn ghost" data-act="export">Save to file</button><button class="btn ghost" data-act="import">Load file</button>`}</div></div>
+  <div class="card stack"><h2>Household</h2><div class="muted small">Accounts that can open this household's jobs. Up to 4.</div>
+   <div class="hist">${mem.map(e=>`<div><span style="overflow-wrap:anywhere;min-width:0">${esc(e)}${e===H.ownerEmail?` <span class="chip">Owner</span>`:""}${e===S.user.email?` <span class="muted small">(you)</span>`:""}</span>${owner&&e!==H.ownerEmail?`<button class="linkish" data-act="rmMember" data-e="${esc(e)}">${S.confirmDel==="m:"+e?"Tap again to remove":"Remove"}</button>`:""}</div>`).join("")}</div>
+   ${owner?(mem.length<4?`<div class="label">Invite someone</div><div class="row"><input class="grow" type="text" inputmode="email" autocomplete="off" id="iEmail" placeholder="their@email.com" aria-label="Email to invite"><button class="btn" data-act="invite">Invite</button></div>
+     <div class="muted small">They must sign in with exactly this email: their Google account, or any email using a sign-in link.</div>`
+     :`<div class="muted small">The household is full. Remove someone to invite another person.</div>`)
+     :`<div class="muted small">Only the owner (${esc(H.ownerEmail||"")}) can invite or remove people.</div>`}
+   ${mem.length>1?`<button class="btn ghost slim" style="align-self:flex-start" data-act="shareInvite">Send the app link again</button>`:""}
+  </div>
+  <div class="card stack"><h2>This device</h2><div class="muted small">Signed in as <b>${esc(S.user.email)}</b></div>
+   ${S.installEvt?`<button class="btn blue" style="align-self:flex-start" data-act="install">Install the app</button>`:""}
+   <button class="btn ghost slim" style="align-self:flex-start" data-act="signOut">Sign out</button></div>
+  <div class="card"><h2>Backup</h2><div class="muted small" style="margin:6px 0 10px">Your jobs are stored online, so nothing is lost if a phone is cleared or replaced. A backup is an extra safety net. Loading one merges with what's here; it never wipes anything.</div>
+   <div class="foot" style="justify-content:flex-start"><button class="btn ghost" data-act="export">Save to file</button><button class="btn ghost" data-act="import">Load file</button><button class="btn ghost" data-act="copyBackup">Copy backup</button><button class="btn ghost" data-act="pasteBackup">Paste a backup</button></div></div>
   <div class="muted small" style="text-align:center;margin-top:6px">Dust Hunter ${VERSION} · weeks start Monday · seasons follow Sydney</div>`;
   return h;
+}
+function viewGate(){
+  const top=`<div style="text-align:center;margin:28px 0 6px"><img src="icon-192.png" width="72" height="72" alt="" style="border-radius:18px" onerror="this.remove()"><h1 style="margin-top:10px">Dust Hunter</h1><div class="muted">Jobs around the house, shared with your household.</div></div>`;
+  const inst=S.installEvt?`<button class="btn blue" data-act="install">Install the app</button>`:"";
+  const err=`<div class="err" id="gErr">${esc(S.err||"")}</div>`;
+  switch(S.auth){
+    case"noconfig":return top+`<div class="card stack"><h2>Almost ready</h2><div class="muted small">This copy isn't connected to Firebase yet. Send your Firebase settings to Claude to get the finished version.</div></div>`;
+    case"error":return top+`<div class="card stack"><h2>Can't load right now</h2><div class="muted small">Check your internet connection, then try again.</div>${err}<button class="btn" data-act="reload">Try again</button></div>`;
+    case"signedOut":return top+`<div class="card stack"><h2>Sign in</h2>
+      <button class="btn" data-act="google">Continue with Google</button>
+      <div class="label" style="text-align:center">or use any email</div>
+      <input type="text" inputmode="email" autocomplete="email" id="lEmail" placeholder="you@example.com" value="${esc(S.linkSent||"")}" aria-label="Email address">
+      <button class="btn ghost" data-act="emailLink">Email me a sign-in link</button>
+      ${S.linkSent?`<div class="status">Link sent to <b>${esc(S.linkSent)}</b>. Open that email on this device and tap the link. Check junk mail if it isn't there within a minute.</div>`:""}${err}</div>`+inst;
+    case"confirmEmail":return top+`<div class="card stack"><h2>Confirm your email</h2><div class="muted small">Type the email address the sign-in link was sent to.</div>
+      <input type="text" inputmode="email" autocomplete="email" id="cEmail" placeholder="you@example.com" aria-label="Email address"><button class="btn" data-act="finishLink">Sign in</button>${err}</div>`;
+    case"noHouse":return top+`<div class="card stack"><h2>Not invited yet</h2><div class="muted small">You're signed in as <b>${esc(S.user.email)}</b>, but no household has invited this email. Ask the household owner to add exactly this address in <b>Settings → Household</b>, then tap Check again.</div>
+      <button class="btn" data-act="recheck">Check again</button><button class="btn ghost" data-act="signOut">Use a different account</button>${err}</div>
+      <div class="card stack"><h2>Setting up Dust Hunter yourself?</h2><div class="muted small">Create a new household with you as the owner. It starts with the standard job list, and you can invite up to 3 others.</div>
+      <button class="btn pink" data-act="createHouse">${S.confirmDel==="create"?"Tap again to create":"Create a household"}</button></div>`+inst;
+    default:return top+`<div class="card empty muted">Loading…</div>`;
+  }
 }
 function viewAbout(){
   const ps=people(),fb=Object.values(D.feedback).filter(f=>!f.del).sort((a,b)=>(a.done?1:0)-(b.done?1:0)||(b.created||0)-(a.created||0));
   const open=fb.filter(f=>!f.done),email=metaGet().email||"";
-  const where=CDB?"your Claude account (trial version)":SY.token&&SY.gist?"a private GitHub Gist shared by your linked phones and laptops":"this browser only (not shared yet – see Settings)";
+  const where="your household's private online database (Google Firebase). Each device also keeps a copy, so it works offline and catches up when it reconnects.";
   let h=`<div class="head"><h1>About</h1><span class="pill">v${VERSION}</span></div>
   <div class="card"><h2>Dust Hunter</h2><div class="muted small" style="margin-top:4px">Keeps the jobs around the house on schedule: what's due this week, who's doing it, and when it was last done.</div>
    <div class="label" style="margin-top:10px">Your data is saved in</div><div>${where}</div>
-   ${SY.token&&SY.gist&&!CDB?`<div class="muted small" style="margin-top:6px">GitHub keeps every earlier version of the data too, so a mistake can always be rolled back. Clearing the browser only removes this device's copy; tap the setup link again to reconnect.</div>`:""}</div>
+   </div>
   <div class="card"><h2>Feedback & ideas</h2><div class="muted small" style="margin-top:4px">Write down anything to fix or add. Ideas are shared, so you'll both see the list.</div>
    ${ps.length?`<div class="label" style="margin-top:10px">From</div><div class="who" id="fbWho">${ps.map(p=>`<button class="c${p.c}" data-act="fbWho" data-p="${p.id}" aria-pressed="${S.fbWho===p.id}">${esc(p.name)}</button>`).join("")}</div>`:""}
    <textarea id="fbText" rows="3" maxlength="2000" style="margin-top:10px" placeholder="e.g. Let me sort the week by person" aria-label="Your feedback"></textarea>
@@ -394,9 +437,9 @@ function viewAbout(){
    ${fb.map(f=>`<div class="fbrow"><div class="grow" style="${f.done?"text-decoration:line-through;color:var(--muted)":""}"><div style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(f.text)}</div><div class="muted small">${f.by&&D.people[f.by]?esc(D.people[f.by].name)+" · ":""}${f.date?short(f.date):""}</div></div>
      <button class="linkish" data-act="fbDone" data-id="${f.id}">${f.done?"Reopen":"Done"}</button><button class="linkish" data-act="fbDel" data-id="${f.id}" aria-label="Delete idea">✕</button></div>`).join("")}
    ${open.length?`<div class="label" style="margin-top:12px">Send the open ideas</div>
-   <div class="foot" style="justify-content:flex-start"><button class="btn blue" data-act="fbCopy">Copy for Claude</button>${CDB?"":`<button class="btn ghost" data-act="fbEmail">Email them</button>`}</div>
+   <div class="foot" style="justify-content:flex-start"><button class="btn blue" data-act="fbCopy">Copy for Claude</button>${`<button class="btn ghost" data-act="fbEmail">Email them</button>`}</div>
    <div class="muted small" style="margin-top:6px">Copy for Claude, then paste into your Dust Hunter chat to have the changes made.</div>`:""}
-   ${CDB?"":`<div class="field" style="margin-top:10px"><label class="label" for="fbEmail">Email ideas to</label><div class="row"><input class="grow" type="text" inputmode="email" id="fbEmail" value="${esc(email)}" placeholder="you@example.com"><button class="btn ghost slim" data-act="fbSaveEmail">Save</button></div>
+   ${`<div class="field" style="margin-top:10px"><label class="label" for="fbEmail">Email ideas to</label><div class="row"><input class="grow" type="text" inputmode="email" id="fbEmail" value="${esc(email)}" placeholder="you@example.com"><button class="btn ghost slim" data-act="fbSaveEmail">Save</button></div>
    <div class="muted small">Kept in your shared data, not in the app's code, so it isn't public.</div></div>`}
   </div>
   <div class="card"><h2>What's new</h2>${CHANGES.map(([v,d,items])=>`<div class="label section"><span>Version ${v}</span><span>${d}</span></div><ul style="margin:4px 0 0;padding-left:20px">${items.map(i=>`<li>${esc(i)}</li>`).join("")}</ul>`).join("")}</div>`;
@@ -509,7 +552,7 @@ document.addEventListener("click",e=>{
   if(e.target.id==="sheet"){closeSheet();return}
   const b=e.target.closest("[data-act]");if(!b)return;
   const a=b.dataset.act,tid=b.dataset.t;
-  if(a!=="delTask"&&a!=="unlink"&&S.confirmDel){S.confirmDel=null}
+  if(!["delTask","rmMember","createHouse"].includes(a)&&S.confirmDel){S.confirmDel=null}
   switch(a){
     case"tab":S.tab=b.dataset.v;render(true);window.scrollTo(0,0);break;
     case"wk":S.week=addDays(S.week,+b.dataset.v);render(true);break;
@@ -540,13 +583,27 @@ document.addEventListener("click",e=>{
     case"addPerson":{const n=$("pName").value.trim();if(!n)break;const used=people().map(p=>p.c),c=[1,2,3,4,0,6,7,8,9,5].find(x=>!used.includes(x))??people().length%10;
       put("people",{id:"p-"+uid(),name:n,c,created:Date.now()});render(true);break}
     case"rmPerson":{const p=D.people[b.dataset.p];put("people",{...p,del:true});toast(`${p.name} removed`,[{label:"Undo",fn:()=>{put("people",{...D.people[p.id],del:false});refresh()}}]);render(true);break}
-    case"createGist":setupSync(true);break;
-    case"linkGist":setupSync(false);break;
-    case"syncNow":if(!SY.token||!SY.gist){S.tab="Settings";render(true)}else sync(true);break;
-    case"shareSetup":shareSetup();break;
-    case"unlink":if(S.confirmDel!=="unlink"){S.confirmDel="unlink";render(true);break}
-      S.confirmDel=null;SY={token:"",gist:"",last:0,state:"",msg:""};saveSync();toast("This phone is unlinked. Your data stays here.");render(true);break;
     case"export":exportData();break;
+    case"reload":location.reload();break;
+    case"google":S.err="";FB.google().catch(e=>{S.err=authMsg(e);render(true)});break;
+    case"emailLink":{const em=($("lEmail").value||"").trim().toLowerCase();if(!EMAIL_RE.test(em)){$("gErr").textContent="Type your full email address.";break}
+      b.disabled=true;FB.sendLink(em).then(()=>{S.linkSent=em;S.err="";render(true)},e=>{S.err=authMsg(e);render(true)});break}
+    case"finishLink":{const em=($("cEmail").value||"").trim().toLowerCase();if(!EMAIL_RE.test(em)){$("gErr").textContent="Type your full email address.";break}
+      FB.finishLink(em).catch(e=>{S.err=authMsg(e);render(true)});break}
+    case"recheck":lookupHouse();break;
+    case"signOut":FB.signOut();break;
+    case"createHouse":if(S.confirmDel!=="create"){S.confirmDel="create";render(true);break}
+      S.confirmDel=null;S.auth="loading";render(true);
+      FB.createHousehold(S.user,seedRecords()).then(hid=>{attach(hid);toast("Household created. Invite others in Settings → Household.")},e=>{S.auth="noHouse";S.err="Couldn't create the household: "+(e.code||e.message);render(true)});break;
+    case"invite":{const em=($("iEmail").value||"").trim().toLowerCase(),mem=(S.house&&S.house.members)||[];
+      if(!EMAIL_RE.test(em)){toast("Type their full email address.");break}
+      if(mem.includes(em)){toast("They're already in the household.");break}
+      if(mem.length>=4){toast("The household is full.");break}
+      FB.invite(S.hid,[...mem,em],em).then(()=>{toast(`${em} invited`);shareInvite(em)},e=>toast("Couldn't invite: "+(e.code||e.message)));break}
+    case"rmMember":{const em=b.dataset.e;if(S.confirmDel!=="m:"+em){S.confirmDel="m:"+em;render(true);break}
+      S.confirmDel=null;FB.removeMember(S.hid,S.house.members.filter(x=>x!==em),em).then(()=>toast(`${em} removed`),e=>toast("Couldn't remove: "+(e.code||e.message)));break}
+    case"shareInvite":shareInvite("");break;
+    case"install":if(S.installEvt){S.installEvt.prompt();S.installEvt.userChoice.finally(()=>{S.installEvt=null;render(true)})}break;
     case"fbWho":S.fbWho=S.fbWho===b.dataset.p?null:b.dataset.p;for(const x of b.parentNode.children)x.setAttribute("aria-pressed",x.dataset.p===S.fbWho);break;
     case"fbAdd":{const t=$("fbText").value.trim();if(!t){$("fbText").focus();break}put("feedback",{id:"f-"+uid(),text:t,by:S.fbWho||"",date:S.today,created:Date.now(),done:false});toast("Idea saved");render(true);break}
     case"fbDone":{const f=D.feedback[b.dataset.id];put("feedback",{...f,done:!f.done});render(true);break}
@@ -558,7 +615,7 @@ document.addEventListener("click",e=>{
     case"copyBackup":{const txt=JSON.stringify({v:1,...D});navigator.clipboard.writeText(txt).then(()=>toast("Backup copied. Paste it into the other version, or a note to keep."),()=>openRaw(txt,"Backup","Select all of this, copy it, and keep it somewhere safe."));break}
     case"pasteBackup":S.sheet={kind:"raw"};$("sheet").innerHTML=`<div class="panel" role="dialog" aria-modal="true"><div class="row"><h2 class="grow">Paste a backup</h2><button class="btn ghost slim" data-act="close">Close</button></div>
       <div class="muted small">Paste the backup text. It merges with what's here.</div><textarea id="pasteBox" rows="6" aria-label="Backup text"></textarea><div class="err" id="pasteErr"></div><div class="foot"><button class="btn" data-act="loadPaste">Load</button></div></div>`;$("sheet").hidden=false;break;
-    case"loadPaste":try{const x=JSON.parse($("pasteBox").value);if(!x||!x.tasks)throw 0;D=merge(D,normal(x));writeJSON(LS,D);queueSync();closeSheet();toast("Backup loaded")}catch(err){$("pasteErr").textContent="That isn't a Dust Hunter backup. Check the whole text was pasted."}break;
+    case"loadPaste":try{const x=JSON.parse($("pasteBox").value);if(!x||!x.tasks)throw 0;importData(x);closeSheet();toast("Backup loaded")}catch(err){$("pasteErr").textContent="That isn't a Dust Hunter backup. Check the whole text was pasted."}break;
     case"import":$("importFile").click();break;
     case"toastAct":{const f=S.toastActs[+b.dataset.i];$("toast").hidden=true;if(f)f.fn();break}
   }
@@ -575,107 +632,122 @@ function exportData(){
 }
 $("importFile").addEventListener("change",async e=>{
   const f=e.target.files[0];e.target.value="";if(!f)return;
-  try{const x=JSON.parse(await f.text());if(!x||!x.tasks)throw 0;D=merge(D,normal(x));writeJSON(LS,D);queueSync();toast("Backup loaded");render(true)}
+  try{const x=JSON.parse(await f.text());if(!x||!x.tasks)throw 0;importData(x);toast("Backup loaded")}
   catch(err){toast("That file isn't a Dust Hunter backup.")}
 });
 
-/* ===================== sync through a private GitHub Gist ===================== */
-async function gh(path,opt={}){
-  let r;
-  try{r=await fetch("https://api.github.com"+path,{...opt,cache:"no-store",headers:{Authorization:"Bearer "+SY.token,Accept:"application/vnd.github+json",...(opt.body?{"Content-Type":"application/json"}:{})}})}
-  catch(e){throw new Error("Can't reach GitHub. Check your connection; it'll try again by itself.")}
-  if(r.status===401)throw new Error("GitHub didn't accept the access key. Check it was copied fully and has the gist box ticked.");
-  if(r.status===404)throw new Error("Shared data not found. Check the ID, and that the key belongs to the same GitHub account.");
-  if(r.status===403||r.status===429)throw new Error("GitHub is limiting requests right now. Try again in a few minutes.");
-  if(!r.ok)throw new Error(`GitHub error ${r.status}. Try again shortly.`);
-  return r.json();
+/* ===================== sign-in & household ===================== */
+const EMAIL_RE=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+function authMsg(e){
+  const c=(e&&e.code)||"";
+  if(c==="auth/popup-closed-by-user"||c==="auth/cancelled-popup-request")return"";
+  if(c==="auth/unauthorized-domain")return"This web address isn't on Firebase's Authorized domains list yet (Authentication → Settings).";
+  if(c==="auth/invalid-email")return"That email address doesn't look right.";
+  if(c==="auth/invalid-action-code"||c==="auth/expired-action-code")return"That sign-in link has expired or was already used. Send a new one.";
+  if(c==="auth/network-request-failed")return"No internet connection. Try again when you're back online.";
+  if(c==="auth/operation-not-allowed")return"This sign-in method isn't switched on in Firebase yet.";
+  return`Sign-in didn't work (${c||"unknown error"}). Try again.`;
 }
-let syncing=false,again=false,syncTimer=null;
-/* Trial mode: when opened as a private page inside Claude, everything is saved to the Claude account instead of GitHub. */
-let CDB=null,cWriting=false,cAgain=false;
-async function claudeSave(){
-  if(cWriting){cAgain=true;return}
-  cWriting=true;SY.state="busy";
-  try{do{cAgain=false;await CDB.doc("state/main").set({json:JSON.stringify({v:1,...D})})}while(cAgain);SY.state="ok";SY.last=Date.now()}
-  catch(e){SY.state="error";SY.msg=e&&e.code==="quota_exceeded"?"Storage is full.":"Couldn't save to Claude. Check your connection."}
-  finally{cWriting=false;if(!S.sheet)render()}
+function openRaw(txt,title,hint){S.sheet={kind:"raw"};$("sheet").innerHTML=`<div class="panel"><div class="row"><h2 class="grow">${esc(title)}</h2><button class="btn ghost slim" data-act="close">Close</button></div><div class="muted small">${esc(hint)}</div><textarea readonly rows="6">${esc(txt)}</textarea></div>`;$("sheet").hidden=false}
+async function shareInvite(email){
+  const url=location.href.split(/[?#]/)[0];
+  const text=`I've added you to our Dust Hunter household (jobs around the house).\n\n1. Open this link in Chrome: ${url}\n2. Tap Install (or Chrome menu ⋮ → Add to Home screen)\n3. Sign in with ${email||"the email I invited"} – Google or the email-link option both work`;
+  try{if(navigator.share){await navigator.share({title:"Dust Hunter",text});return}}catch(e){if(e&&e.name==="AbortError")return}
+  try{await navigator.clipboard.writeText(text);toast("Invite message copied. Paste it into a text or email to them.")}
+  catch(e){openRaw(text,"Invite message","Copy this and send it to them.")}
 }
-async function startClaude(){
-  const use=window.claude&&window.claude.use;if(!use)return;
-  const db=await window.claude.use("db").catch(()=>null);if(!db)return;
-  CDB=db;SY.state="busy";render(true);
-  db.collection("state").onSnapshot(snap=>{
-    let remote=empty();
-    for(const d of snap.docs)if(d.id==="main"){try{remote=normal(JSON.parse(d.data().json||"{}"))}catch(e){}}
-    const before=canon(D),m=merge(D,remote);D=m;writeJSON(LS,D);
-    if(canon(m)!==canon(merge(remote,empty())))claudeSave();else if(!cWriting){SY.state="ok";SY.last=Date.now()}
-    if(canon(m)!==before&&S.sheet&&S.sheet.kind!=="edit")drawSheet();
-    render();
-  },()=>{SY.state="error";SY.msg="Lost the connection to Claude. Reload the page.";render()});
+let unsub=[];
+function detach(){for(const f of unsub){try{f()}catch(e){}}unsub=[];S.hid=null;S.house=null;D=empty()}
+async function lookupHouse(){
+  S.auth="loading";S.err="";render(true);
+  try{const hid=await FB.findHousehold(S.user.email);if(hid)attach(hid);else{S.auth="noHouse";render(true)}}
+  catch(e){S.auth=e&&e.code==="permission-denied"?"noHouse":"error";S.err=S.auth==="error"?(e.message||""):"";render(true)}
 }
-function queueSync(){
-  if(CDB){clearTimeout(syncTimer);syncTimer=setTimeout(claudeSave,600);return}
-  if(!SY.token||!SY.gist)return;clearTimeout(syncTimer);syncTimer=setTimeout(()=>sync(false),1200)}
-async function sync(loud){
-  if(CDB){if(loud)claudeSave();return}
-  if(!SY.token||!SY.gist)return;
-  if(syncing){again=true;return}
-  syncing=true;SY.state="busy";if(!S.sheet)render();
-  try{
-    do{again=false;
-      const g=await gh("/gists/"+SY.gist),f=g.files&&g.files[FILE];
-      let remote=empty();
-      if(f){const txt=f.truncated?await (await fetch(f.raw_url,{cache:"no-store"})).text():f.content;remote=normal(JSON.parse(txt||"{}"))}
-      const before=canon(D),m=merge(D,remote),out=canon(m);
-      if(out!==canon(merge(remote,empty())))await gh("/gists/"+SY.gist,{method:"PATCH",body:JSON.stringify({files:{[FILE]:{content:JSON.stringify({v:1,...m})}}})});
-      D=m;writeJSON(LS,D);
-      if(out!==before){if(S.sheet&&S.sheet.kind!=="edit")drawSheet()}
-    }while(again);
-    SY.last=Date.now();SY.state="ok";SY.msg="";saveSync();if(loud)toast("Synced");
-  }catch(e){SY.state="error";SY.msg=e.message||"Sync failed.";if(loud)toast(SY.msg)}
-  finally{syncing=false;render()}
+function attach(hid){
+  detach();S.hid=hid;let gotH=false,gotD=false;
+  const ready=()=>{if(gotH&&gotD&&S.auth!=="ready"){S.auth="ready";S.tab="Week";render(true);return true}return false};
+  const lost=e=>{detach();if(!S.user)return;S.auth=e&&e.code==="permission-denied"?"noHouse":"error";S.err=S.auth==="error"?((e&&e.message)||""):"";render(true)};
+  unsub.push(FB.watchHousehold(hid,h=>{
+    if(!h||!(h.members||[]).includes(S.user.email)){lost({code:"permission-denied"});return}
+    S.house=h;gotH=true;if(!ready())render();
+  },lost));
+  unsub.push(FB.watchData(hid,docs=>{
+    const n=empty();for(const d of docs){const c=d.id.split("-")[0];if(n[c])Object.assign(n[c],d.r)}
+    D=n;gotD=true;
+    if(!ready()){render();if(S.sheet&&S.sheet.kind!=="edit"&&S.sheet.kind!=="raw")drawSheet()}
+  },lost));
 }
-async function setupSync(create){
-  const tok=($("sToken").value||"").trim(),gid=($("sGist").value||"").trim().replace(/^.*\//,"");
-  const err=m=>{$("sErr").textContent=m};
-  if(!tok)return err("Paste your GitHub access key first.");
-  SY.token=tok;
-  try{
-    if(create){
-      err("Creating…");
-      const g=await gh("/gists",{method:"POST",body:JSON.stringify({description:"Dust Hunter shared data",public:false,files:{[FILE]:{content:JSON.stringify({v:1,...D})}}})});
-      SY.gist=g.id;
-    }else{if(!gid)return err("Paste the shared data ID, or tap Create shared data.");SY.gist=gid}
-    saveSync();await sync(false);
-    if(SY.state==="error"){err(SY.msg);SY.gist="";saveSync();return}
-    toast(create?"Shared data created. Now send the setup link to the other phone.":"Linked. This phone now shares the same jobs.");render(true);
-  }catch(e){SY.state="";err(e.message);SY.gist="";saveSync()}
-}
-async function shareSetup(){
-  const url=location.href.split("#")[0]+"#setup="+btoa(JSON.stringify({t:SY.token,g:SY.gist}));
-  try{if(navigator.share){await navigator.share({title:"Dust Hunter",text:"Open this on your phone to share our house jobs list:",url});return}}catch(e){if(e&&e.name==="AbortError")return}
-  try{await navigator.clipboard.writeText(url);toast("Setup link copied. Paste it into a private message.")}
-  catch(e){openRaw(url)}
-}
-function openRaw(txt,title="Setup link",hint="Copy this and send it privately."){S.sheet={kind:"raw"};$("sheet").innerHTML=`<div class="panel"><div class="row"><h2 class="grow">${esc(title)}</h2><button class="btn ghost slim" data-act="close">Close</button></div><div class="muted small">${esc(hint)}</div><textarea readonly rows="6">${esc(txt)}</textarea></div>`;$("sheet").hidden=false}
-function readSetupHash(){
-  const m=location.hash.match(/^#setup=(.+)$/);if(!m)return;
-  history.replaceState(null,"",location.pathname+location.search);
-  try{const x=JSON.parse(atob(decodeURIComponent(m[1])));if(x.t&&x.g){SY.token=x.t;SY.gist=x.g;saveSync();toast("Linked to your shared Dust Hunter. Syncing…")}}
-  catch(e){toast("That setup link didn't work. Ask for it to be sent again.")}
+function boot(fbx){
+  if(fbx===null){S.auth="noconfig";render(true);return}
+  if(!fbx||fbx==="error"){S.auth="error";S.err="Couldn't load the sign-in system.";render(true);return}
+  FB=fbx;
+  if(FB.isLink()){
+    const em=localStorage.getItem("dh.email");
+    if(em)FB.finishLink(em).catch(e=>{S.err=authMsg(e);S.auth="signedOut";render(true)});
+    else{S.auth="confirmEmail";render(true)}
+  }
+  FB.onUser(u=>{
+    S.user=u;
+    if(!u){detach();if(S.auth!=="confirmEmail")S.auth="signedOut";render(true);return}
+    S.linkSent="";lookupHouse();
+  });
 }
 
 /* ===================== start ===================== */
 document.addEventListener("visibilitychange",()=>{
   if(document.visibilityState!=="visible")return;
   const t=localToday();if(t!==S.today){const wasThis=S.week===monday(S.today);S.today=t;if(wasThis)S.week=monday(t);render(true)}
-  sync(false);
 });
-setInterval(()=>{if(document.visibilityState==="visible"&&!S.sheet)sync(false)},90000);
-readSetupHash();
+window.addEventListener("online",()=>pill());
+window.addEventListener("offline",()=>pill());
+window.addEventListener("beforeinstallprompt",e=>{e.preventDefault();S.installEvt=e;render()});
+window.addEventListener("appinstalled",()=>{S.installEvt=null;toast("Installed. Open Dust Hunter from your home screen.");render()});
+if("serviceWorker" in navigator&&location.protocol==="https:")navigator.serviceWorker.register("sw.js").catch(()=>{});
 render(true);
-sync(false);
-startClaude();
+if(window.__TEST_FBX!==undefined)setTimeout(()=>boot(window.__TEST_FBX),0);
+else window.addEventListener("fbx",e=>boot(e.detail),{once:true});
+</script>
+<script type="module">
+/* Firebase connection. Everything the app needs from Firebase goes through window.FBX. */
+const CFG=window.FIREBASE_CONFIG;
+const send=d=>window.dispatchEvent(new CustomEvent("fbx",{detail:d}));
+if(window.__TEST_FBX!==undefined){/* test mode */}
+else if(!CFG)send(null);
+else try{
+  const B="https://www.gstatic.com/firebasejs/10.14.1/";
+  const [{initializeApp},A,F]=await Promise.all([import(B+"firebase-app.js"),import(B+"firebase-auth.js"),import(B+"firebase-firestore.js")]);
+  const app=initializeApp(CFG),auth=A.getAuth(app);
+  let db;
+  try{db=F.initializeFirestore(app,{localCache:F.persistentLocalCache({tabManager:F.persistentMultipleTabManager()}),ignoreUndefinedProperties:true})}
+  catch(e){db=F.initializeFirestore(app,{ignoreUndefinedProperties:true})}
+  A.getRedirectResult(auth).catch(()=>{});
+  const house=hid=>F.doc(db,"households",hid), invite=em=>F.doc(db,"invites",em);
+  send({
+    onUser:cb=>A.onAuthStateChanged(auth,u=>cb(u?{uid:u.uid,email:(u.email||"").toLowerCase()}:null)),
+    async google(){
+      const p=new A.GoogleAuthProvider();p.setCustomParameters({prompt:"select_account"});
+      try{await A.signInWithPopup(auth,p)}
+      catch(e){if(["auth/popup-blocked","auth/operation-not-supported-in-this-environment"].includes(e.code))await A.signInWithRedirect(auth,p);else throw e}
+    },
+    async sendLink(email){await A.sendSignInLinkToEmail(auth,email,{url:location.href.split(/[?#]/)[0],handleCodeInApp:true});localStorage.setItem("dh.email",email)},
+    isLink:()=>A.isSignInWithEmailLink(auth,location.href),
+    async finishLink(email){await A.signInWithEmailLink(auth,email,location.href);localStorage.removeItem("dh.email");history.replaceState(null,"",location.pathname)},
+    signOut:()=>A.signOut(auth),
+    async findHousehold(email){const s=await F.getDoc(invite(email));return s.exists()?s.data().hid:null},
+    async createHousehold(user,tasks){
+      const ref=F.doc(F.collection(db,"households"));
+      await F.setDoc(ref,{owner:user.uid,ownerEmail:user.email,members:[user.email],created:Date.now()});
+      await F.setDoc(invite(user.email),{hid:ref.id,by:user.uid});
+      await F.setDoc(F.doc(db,"households",ref.id,"data","tasks"),{r:tasks});
+      return ref.id;
+    },
+    async invite(hid,members,email){await F.updateDoc(house(hid),{members});await F.setDoc(invite(email),{hid,by:auth.currentUser.uid})},
+    async removeMember(hid,members,email){await F.updateDoc(house(hid),{members});await F.deleteDoc(invite(email)).catch(()=>{})},
+    watchHousehold:(hid,cb,err)=>F.onSnapshot(house(hid),s=>cb(s.exists()?s.data():null),err),
+    watchData:(hid,cb,err)=>F.onSnapshot(F.collection(db,"households",hid,"data"),s=>cb(s.docs.map(d=>({id:d.id,r:(d.data()||{}).r||{}}))),err),
+    write:(hid,key,recs)=>F.setDoc(F.doc(db,"households",hid,"data",key),{r:recs},{merge:true}),
+  });
+}catch(e){console.error(e);send("error")}
 </script>
 </body>
 </html>
