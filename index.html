@@ -1,0 +1,681 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Dust Hunter</title>
+<meta name="application-name" content="Dust Hunter">
+<meta name="apple-mobile-web-app-title" content="Dust Hunter">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#EEF6F5">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23CDECEE'/%3E%3Cpath d='M32 10l5 15 15 5-15 5-5 15-5-15-15-5 15-5z' fill='%232F9AA3'/%3E%3Ccircle cx='48' cy='48' r='5' fill='%23CC5F8C'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap">
+<style>
+/* Same pastel family as Habit Hunter, with a teal "clean" accent. One thumb-reach column, tabs along the bottom. */
+:root {
+  --bg:#EEF6F5; --card:#FFFFFF; --line:#D9E8E6; --text:#38464A; --muted:#66777B;
+  --acc:#CDECEE; --acc-strong:#2F9AA3; --blue:#D5E7F8; --pink:#FADDE8; --pink-strong:#B8487A; --on-strong:#FFFFFF; --warn:#B8487A;
+  --h0:#DCCFF3; --e0:#8A6FCB; --h1:#D5E7F8; --e1:#4F86BE; --h2:#FADDE8; --e2:#CC5F8C;
+  --h3:#D3EFE3; --e3:#3E9673; --h4:#FBE8C8; --e4:#B9832B; --h5:#E3E0EA; --e5:#7A7390;
+  --h6:#F9D6CF; --e6:#D2634E; --h7:#CDECEE; --e7:#2F9AA3; --h8:#E4EDBE; --e8:#84972B; --h9:#D4D8F7; --e9:#5A67C9;
+  --font:"Nunito","Segoe UI",system-ui,sans-serif; color-scheme:light;
+}
+@media (prefers-color-scheme: dark) { :root {
+  --bg:#18211F; --card:#232E2C; --line:#36443F; --text:#E8F2F0; --muted:#A3B5B1;
+  --acc:#1F4A4E; --acc-strong:#6FD0D8; --blue:#2F4560; --pink:#5A3045; --pink-strong:#F19CC0; --on-strong:#18211F; --warn:#F19CC0;
+  --h0:#4A3D6B; --e0:#B9A2EE; --h1:#2F4560; --e1:#8DBBEA; --h2:#5A3045; --e2:#F19CC0;
+  --h3:#27493C; --e3:#7FD0AE; --h4:#54442A; --e4:#E5BA70; --h5:#403B4D; --e5:#B4ADC6;
+  --h6:#5C3329; --e6:#F0A08E; --h7:#1F4A4E; --e7:#6FD0D8; --h8:#434C1F; --e8:#C5D86A; --h9:#333A68; --e9:#9AA5F0; color-scheme:dark;
+} }
+* { box-sizing:border-box; }
+[hidden] { display:none !important; }
+html { scroll-padding-top:env(safe-area-inset-top,0px); }
+body { margin:0; background:var(--bg); color:var(--text); font:600 15px/1.4 var(--font); -webkit-tap-highlight-color:transparent; }
+button,input,select,textarea { font:inherit; color:inherit; }
+button { cursor:pointer; border:0; background:none; touch-action:manipulation; text-align:inherit; padding:0; }
+:focus-visible { outline:2px solid var(--acc-strong); outline-offset:2px; }
+#wrap { max-width:640px; margin:0 auto; padding-block:calc(14px + env(safe-area-inset-top,0px)) calc(92px + env(safe-area-inset-bottom,0px));
+  padding-left:max(16px,env(safe-area-inset-left,0px)); padding-right:max(16px,env(safe-area-inset-right,0px)); }
+#view { display:flex; flex-direction:column; gap:10px; }
+h1 { font-size:24px; font-weight:800; margin:0; line-height:1.15; text-wrap:balance; }
+h2 { font-size:17px; font-weight:800; margin:0; }
+.head { display:flex; align-items:center; gap:8px; min-height:44px; }
+.head h1 { flex:1; min-width:0; }
+.muted { color:var(--muted); }
+.small { font-size:13px; }
+.warn { color:var(--warn); font-weight:800; }
+.due { color:var(--acc-strong); font-weight:800; }
+.label { font-size:13px; font-weight:800; color:var(--muted); margin-top:4px; }
+.section { margin-top:10px; display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
+.btn { min-height:44px; padding:0 16px; border-radius:14px; font-weight:800; background:var(--acc); white-space:nowrap; text-align:center; }
+.btn.pink { background:var(--pink); }
+.btn.blue { background:var(--blue); }
+.btn.ghost { background:var(--card); border:1px solid var(--line); font-weight:700; }
+.btn.slim { min-height:36px; padding:0 12px; border-radius:11px; font-size:14px; }
+.btn.icon { width:44px; padding:0; flex:none; }
+.btn.danger { background:var(--pink); color:var(--pink-strong); }
+.btn:disabled { opacity:.4; cursor:default; }
+.card { background:var(--card); border-radius:18px; padding:12px 14px; min-width:0; }
+.row { display:flex; align-items:center; gap:12px; }
+.grow { flex:1; min-width:0; }
+.rowbtn { display:block; width:100%; min-height:44px; }
+.name { font-size:16px; font-weight:800; overflow-wrap:anywhere; }
+.faded .name { color:var(--muted); text-decoration:line-through; text-decoration-thickness:2px; }
+.tick { width:44px; height:44px; flex:none; border-radius:14px; display:grid; place-items:center; background:var(--hfill); border:2px solid var(--hedge); }
+.tick svg { width:24px; height:24px; visibility:hidden; }
+.tick svg path { stroke:var(--on-strong); }
+.tick[aria-pressed="true"] { background:var(--hedge); }
+.tick[aria-pressed="true"] svg { visibility:visible; }
+.dot { width:14px; height:14px; border-radius:50%; flex:none; background:var(--hedge); margin:0 15px; }
+.c0{--hfill:var(--h0);--hedge:var(--e0)} .c1{--hfill:var(--h1);--hedge:var(--e1)} .c2{--hfill:var(--h2);--hedge:var(--e2)}
+.c3{--hfill:var(--h3);--hedge:var(--e3)} .c4{--hfill:var(--h4);--hedge:var(--e4)} .c5{--hfill:var(--h5);--hedge:var(--e5)}
+.c6{--hfill:var(--h6);--hedge:var(--e6)} .c7{--hfill:var(--h7);--hedge:var(--e7)} .c8{--hfill:var(--h8);--hedge:var(--e8)} .c9{--hfill:var(--h9);--hedge:var(--e9)}
+.chips { display:flex; flex-wrap:wrap; gap:5px; margin-top:6px; }
+.chip { display:inline-block; padding:2px 10px; border-radius:9px; background:var(--hfill,var(--acc)); font-size:13px; font-weight:800; overflow-wrap:anywhere; }
+.chip.day { background:var(--blue); }
+.progress { height:10px; border-radius:5px; background:var(--line); overflow:hidden; }
+.progress div { height:100%; background:var(--acc-strong); border-radius:5px; transition:width .2s; }
+textarea, input[type=text], input[type=number], input[type=date], input[type=password], select {
+  width:100%; min-height:44px; padding:10px 12px; border-radius:12px; border:1px solid var(--line); background:var(--bg); font-size:16px; font-weight:600; }
+textarea { resize:vertical; min-height:72px; display:block; }
+.weekbar { display:flex; align-items:center; gap:8px; }
+.weekbar .range { flex:1; text-align:center; font-weight:800; }
+.days { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
+.days button { min-height:50px; border-radius:11px; background:var(--card); border:1px solid var(--line); font-size:13px; font-weight:800; text-align:center; line-height:1.15; }
+.days button[aria-pressed="true"] { background:var(--blue); border-color:var(--e1); }
+.days button small { display:block; font-weight:600; color:var(--muted); }
+.who { display:flex; flex-wrap:wrap; gap:6px; }
+.who button { min-height:40px; padding:0 14px; border-radius:12px; background:var(--card); border:2px solid var(--line); font-weight:800; }
+.who button[aria-pressed="true"] { background:var(--hfill); border-color:var(--hedge); }
+.seg { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+.seg button { min-height:44px; border-radius:12px; background:var(--card); border:1px solid var(--line); font-weight:800; text-align:center; }
+.seg button[aria-pressed="true"] { background:var(--acc); border-color:var(--acc-strong); }
+.grid2 { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.field { display:flex; flex-direction:column; gap:4px; }
+.hist { display:flex; flex-direction:column; gap:4px; }
+.hist div { display:flex; align-items:center; justify-content:space-between; gap:8px; min-height:40px; border-bottom:1px solid var(--line); }
+.fbrow { display:flex; align-items:flex-start; gap:4px; padding:8px 0; border-bottom:1px solid var(--line); }
+.linkish { color:var(--muted); font-weight:800; font-size:14px; min-height:36px; padding:0 6px; text-decoration:underline; }
+.notes { white-space:pre-wrap; overflow-wrap:anywhere; background:var(--card); border-radius:14px; padding:10px 12px; font-size:14px; }
+.err { color:var(--pink-strong); font-weight:800; min-height:20px; font-size:14px; }
+.status { background:var(--blue); border-radius:12px; padding:8px 12px; font-size:14px; }
+.status.bad { background:var(--pink); }
+.empty { text-align:center; padding:22px 14px; display:flex; flex-direction:column; align-items:center; gap:8px; }
+.foot { display:flex; justify-content:flex-end; gap:8px; flex-wrap:wrap; }
+.pill { font-size:12px; font-weight:800; padding:4px 10px; border-radius:10px; background:var(--card); border:1px solid var(--line); color:var(--muted); min-height:32px; }
+.pill.ok { color:var(--acc-strong); }
+.pill.bad { color:var(--pink-strong); }
+nav { position:fixed; left:0; right:0; bottom:0; z-index:5; background:var(--card); border-top:1px solid var(--line);
+  padding:6px max(8px,env(safe-area-inset-right,0px)) calc(6px + env(safe-area-inset-bottom,0px)) max(8px,env(safe-area-inset-left,0px)); }
+nav div { max-width:640px; margin:0 auto; display:grid; grid-template-columns:repeat(5,1fr); gap:3px; }
+nav button { min-height:50px; border-radius:14px; font-weight:800; font-size:13px; color:var(--muted); text-align:center; }
+nav button[aria-current="page"] { background:var(--acc); color:var(--text); }
+#sheet { position:fixed; inset:0; z-index:10; background:rgba(20,40,40,.45); display:flex; align-items:flex-end; justify-content:center; }
+.panel { background:var(--bg); width:100%; max-width:640px; max-height:92%; overflow-y:auto; border-radius:22px 22px 0 0; display:flex; flex-direction:column; gap:10px;
+  padding-block:18px calc(18px + env(safe-area-inset-bottom,0px)); padding-left:max(16px,env(safe-area-inset-left,0px)); padding-right:max(16px,env(safe-area-inset-right,0px)); }
+#toast { position:fixed; left:16px; right:16px; bottom:calc(76px + env(safe-area-inset-bottom,0px)); z-index:20; max-width:480px; margin:auto; background:var(--text); color:var(--bg);
+  padding:8px 8px 8px 14px; border-radius:14px; font-weight:700; display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+#toast .tbtn { min-height:36px; padding:0 10px; border-radius:10px; background:var(--bg); color:var(--text); font-weight:800; font-size:14px; }
+@media (prefers-reduced-motion: reduce) { .progress div { transition:none; } }
+</style>
+</head>
+<body>
+<div id="wrap"><main id="view"></main></div>
+<nav aria-label="Sections"><div id="tabs"></div></nav>
+<div id="sheet" hidden></div>
+<div id="toast" role="status" hidden></div>
+<input type="file" id="importFile" accept="application/json,.json" hidden>
+
+<script>
+/* ===================== dates (plain YYYY-MM-DD strings) ===================== */
+const DAY=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"], MON=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const pad=n=>String(n).padStart(2,"0");
+const toISO=d=>`${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())}`;
+const utc=s=>new Date(Date.UTC(+s.slice(0,4),+s.slice(5,7)-1,+s.slice(8,10)));
+const addDays=(s,n)=>{const d=utc(s);d.setUTCDate(d.getUTCDate()+n);return toISO(d)};
+const weekday=s=>(utc(s).getUTCDay()+6)%7;
+const monday=s=>addDays(s,-weekday(s));
+const diffDays=(a,b)=>Math.round((utc(a)-utc(b))/864e5);
+const short=s=>`${DAY[weekday(s)]} ${+s.slice(8)} ${MON[+s.slice(5,7)-1]}`;
+const dm=s=>`${+s.slice(8)} ${MON[+s.slice(5,7)-1]}`;
+const plural=(n,w)=>`${n} ${w}${n===1?"":"s"}`;
+const localToday=()=>{const d=new Date();return`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`};
+
+/* Sydney seasons: summer Dec–Feb, autumn Mar–May, winter Jun–Aug, spring Sep–Nov */
+const SEASONS={su:"Summer",au:"Autumn",wi:"Winter",sp:"Spring"}, SORDER=["su","au","wi","sp"];
+const seasonOf=d=>{const m=+d.slice(5,7);return m===12||m<=2?"su":m<=5?"au":m<=8?"wi":"sp"};
+
+const CATS=[["lawn","Lawn",3],["garden","Garden",8],["outdoor","Outdoor",4],["indoor","Indoor",1],["pets","Pets",2],["car","Car",0],["other","Other",5]];
+const catOf=id=>CATS.find(c=>c[0]===id)||CATS[6];
+
+/* ===================== starting task list (fixed ids so both phones match) ===================== */
+const SEED=[
+ {id:"t-dog",name:"Wash dog",cat:"pets",freq:{type:"fixed",days:28},pair:"t-dogbed",
+  notes:"Vets generally suggest every 4–6 weeks. Brush first, use dog shampoo.\nTicking this offers to tick the dog bed too, so the clean dog gets a clean bed."},
+ {id:"t-dogbed",name:"Wash dog bed",cat:"pets",freq:{type:"fixed",days:14},notes:"Every 2–4 weeks. Hot wash; vacuum the bed between washes."},
+ {id:"t-mow",name:"Mow lawns",cat:"lawn",freq:{type:"season",su:7,au:14,wi:28,sp:10},
+  notes:"Buffalo: about 40–50 mm in summer, a little higher going into winter. Never take more than a third of the blade off."},
+ {id:"t-water",name:"Water lawns",cat:"lawn",freq:{type:"season",su:3,au:7,wi:10,sp:4},
+  notes:"Deep soak, about 25 mm per session (deep and less often beats daily).\nSydney Water rules: before 10 am or after 4 pm.\nAfter good rain, use \"Skip this time\" to reset the clock."},
+ {id:"t-feed",name:"Weed & feed lawns",cat:"lawn",freq:{type:"season",su:56,au:42,wi:0,sp:42},
+  notes:"Feed while the lawn is actively growing: main feeds in spring and early autumn, optional in summer. Off in winter.\nBuffalo-safe products only; avoid weedkillers with Dicamba or DSMA.\nDon't fertilise in heatwaves (35°C+)."},
+ {id:"t-dwfilter",name:"Clean dishwasher filter",cat:"indoor",freq:{type:"fixed",days:14},notes:"Twist out the filter, rinse and brush off food bits, wipe the door seal."},
+ {id:"t-dwcycle",name:"Dishwasher cleaning cycle",cat:"indoor",freq:{type:"fixed",days:30},notes:"Empty machine, hottest cycle with a dishwasher cleaner, or a cup of white vinegar upright on the top rack."},
+ {id:"t-sheets-master",name:"Sheets: main bedroom",cat:"indoor",freq:{type:"fixed",days:7},notes:"Weekly (fortnightly at most). Pillowcases too."},
+ {id:"t-sheets-kid1",name:"Sheets: kid's bed 1",cat:"indoor",freq:{type:"fixed",days:7},notes:"Weekly (fortnightly at most). Rename this to the child's name in Tasks."},
+ {id:"t-sheets-kid2",name:"Sheets: kid's bed 2",cat:"indoor",freq:{type:"fixed",days:7},notes:"Weekly (fortnightly at most). Rename this to the child's name in Tasks."},
+ {id:"t-weed",name:"Weed garden beds",cat:"garden",freq:{type:"season",su:14,au:14,wi:21,sp:10},notes:"Pull them small before they seed. Spring is the busiest time."},
+ {id:"t-fans",name:"Dust fans",cat:"indoor",freq:{type:"season",su:30,au:60,wi:90,sp:30},notes:"Monthly while the fans run all day, quarterly otherwise. Slide an old pillowcase over each blade so the dust stays in it."},
+ {id:"t-sweep",name:"Sweep / blow veranda",cat:"outdoor",freq:{type:"fixed",days:7},notes:"Tiles get dusty quickly in the east."},
+ {id:"t-washver",name:"Wash veranda tiles",cat:"outdoor",freq:{type:"fixed",days:30},notes:"Sweep or blow first, then mop or low-pressure wash. Wide spray so the grout isn't damaged."},
+ {id:"t-webs",name:"Clear cobwebs",cat:"outdoor",freq:{type:"season",su:21,au:30,wi:45,sp:21},notes:"Eaves, window frames, veranda corners and light fittings. Spiders are busiest in the warm months."},
+ {id:"t-car",name:"Clean car inside",cat:"car",freq:{type:"fixed",days:30},notes:"Take everything out, vacuum seats, footwells, under the mats and the boot. Wipe down the dash."}
+];
+
+/* ===================== storage & merge ===================== */
+const LS="dusthunter.data.v1", LSS="dusthunter.sync.v1", FILE="dust-hunter.json", COLLS=["tasks","done","plans","people","feedback","meta"];
+const empty=()=>({tasks:{},done:{},plans:{},people:{},feedback:{},meta:{}});
+const readJSON=k=>{try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}};
+const writeJSON=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){toast("This phone's storage is full, so that wasn't saved.")}};
+function normal(x){const o=empty();if(x&&typeof x==="object")for(const c of COLLS)if(x[c]&&typeof x[c]==="object")o[c]={...x[c]};return o}
+/* Each record keeps its own "u" (last changed) time; the newer copy wins. Deletes are kept as del:true so they sync too. */
+function merge(a,b){const o=empty();for(const c of COLLS){o[c]={...a[c]};for(const[k,v]of Object.entries(b[c]||{}))if(!o[c][k]||(v.u||0)>(o[c][k].u||0))o[c][k]=v}return o}
+const canon=o=>Array.isArray(o)?"["+o.map(canon).join(",")+"]":o&&typeof o==="object"?"{"+Object.keys(o).filter(k=>o[k]!==undefined).sort().map(k=>JSON.stringify(k)+":"+canon(o[k])).join(",")+"}":JSON.stringify(o);
+
+let D=normal(readJSON(LS));
+if(!localStorage.getItem(LS)){for(const t of SEED)D.tasks[t.id]={...t,u:1};writeJSON(LS,D)}
+let SY=Object.assign({token:"",gist:"",last:0,state:"",msg:""},readJSON(LSS)||{});
+const saveSync=()=>writeJSON(LSS,{token:SY.token,gist:SY.gist,last:SY.last});
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+function put(coll,obj){obj.u=Date.now();D[coll][obj.id]=obj;writeJSON(LS,D);queueSync()}
+
+/* ===================== reading the data ===================== */
+const S={tab:"Week",today:localToday(),week:monday(localToday()),sheet:null,form:null,histLimit:60,confirmDel:null,toastActs:[]};
+const tasks=()=>Object.values(D.tasks).filter(t=>!t.del).sort((a,b)=>a.name.localeCompare(b.name));
+const people=()=>Object.values(D.people).filter(p=>!p.del).sort((a,b)=>(a.created||0)-(b.created||0));
+const personC=id=>{const p=D.people[id];return p?p.c:5};
+const doneOf=tid=>Object.values(D.done).filter(x=>!x.del&&x.task===tid).sort((a,b)=>b.date.localeCompare(a.date)||(b.u||0)-(a.u||0));
+function lastDone(tid){let m=null;for(const x of Object.values(D.done))if(!x.del&&x.task===tid&&(!m||x.date>m))m=x.date;return m}
+const intervalOn=(t,d)=>t.freq.type==="fixed"?+t.freq.days:(+t.freq[seasonOf(d)]||0);
+/* Next due = first day after the last time it was done where the gap reaches that day's season interval.
+   So a lawn mowed in late winter comes due on the spring schedule, and a paused task wakes up when its season starts. */
+function dueOf(t){
+  const L=lastDone(t.id);if(!L)return{due:S.today,never:true};
+  for(let i=1;i<=400;i++){const d=addDays(L,i),n=intervalOn(t,d);if(n>0&&i>=n)return{due:d}}
+  return{due:null};
+}
+const fmtDays=n=>!n?"Off":n===1?"Daily":n===7?"Weekly":n===14?"Fortnightly":n===30?"Monthly":n===91?"Quarterly":n===182?"Every 6 months":n===365?"Yearly":n%7===0?`Every ${n/7} weeks`:`Every ${n} days`;
+function freqNow(t){
+  if(t.freq.type==="fixed")return fmtDays(+t.freq.days);
+  const s=seasonOf(S.today);return`${fmtDays(+t.freq[s])} in ${SEASONS[s].toLowerCase()}`;
+}
+const freqAll=t=>t.freq.type==="fixed"?fmtDays(+t.freq.days):SORDER.map(s=>`${SEASONS[s]}: ${fmtDays(+t.freq[s]).toLowerCase()}`).join(" · ");
+function statusOf(t){
+  const{due,never}=dueOf(t);
+  if(never)return["Not recorded yet","warn"];
+  if(!due)return["Off for now","muted"];
+  const n=diffDays(due,S.today);
+  if(n<0)return[`Overdue ${plural(-n,"day")}`,"warn"];
+  if(n===0)return["Due today","due"];
+  if(n===1)return["Due tomorrow","due"];
+  if(intervalOn(t,S.today)===0)return[`Off until ${SEASONS[seasonOf(due)].toLowerCase()} (${dm(due)})`,"muted"];
+  if(n<7)return[`Due ${short(due)}`,"due"];
+  return[`Due in ${n} days (${dm(due)})`,"muted"];
+}
+const planOf=(w,tid)=>{const p=D.plans[w+"|"+tid];return p&&!p.del?p:null};
+function setPlan(w,tid,patch){const id=w+"|"+tid;put("plans",{...(D.plans[id]||{id,week:w,task:tid,day:null,people:[],extra:false}),...patch})}
+
+function weekItems(W){
+  const sun=addDays(W,6),thisMon=monday(S.today);
+  const done=Object.values(D.done).filter(x=>!x.del&&x.date>=W&&x.date<=sun&&D.tasks[x.task]&&!D.tasks[x.task].del)
+    .sort((a,b)=>a.date.localeCompare(b.date)||(a.u||0)-(b.u||0));
+  if(W<thisMon)return{due:[],done};
+  const doneIds=new Set(done.map(x=>x.task)),due=[];
+  for(const t of tasks()){
+    const r=dueOf(t),p=planOf(W,t.id),isDue=!!(r.due&&r.due<=sun);
+    if(isDue||(p&&p.extra&&!doneIds.has(t.id)))due.push({t,r,p,extra:!isDue});
+  }
+  return{due,done};
+}
+
+/* ===================== rendering ===================== */
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c]);
+const TICK='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const TABS=["Week","Tasks","History","Settings","About"];
+const VERSION="1.1.0";
+const CHANGES=[
+ ["1.1.0","10 Nov 2026",["About tab with version and release notes","Feedback: write ideas in the app, see everyone's list, email it or copy it to Claude","Copy / paste backup that works everywhere","Shared data lives on GitHub, so clearing the browser can't lose it"]],
+ ["1.0.0","8 Nov 2026",["First version: weekly job list (Mon–Sun), plan a day and people per job","Due dates count from when a job was last done; lawn, fans, cobwebs and weeding follow the Sydney seasons","Skip this time, dog wash offers to tick the dog bed, history and editing"]]
+];
+const metaGet=()=>{const m=D.meta.settings;return m&&!m.del?m:{id:"settings"}};
+
+function typingInView(){const a=document.activeElement;return a&&$("view").contains(a)&&/^(TEXTAREA|INPUT|SELECT)$/.test(a.tagName)}
+function render(force){
+  if(!force&&typingInView())return;
+  const sc=window.scrollY;
+  $("tabs").innerHTML=TABS.map(t=>`<button data-act="tab" data-v="${t}" ${t===S.tab?'aria-current="page"':""}>${t}</button>`).join("");
+  $("view").innerHTML=({Week:viewWeek,Tasks:viewTasks,History:viewHistory,Settings:viewSettings,About:viewAbout})[S.tab]();
+  window.scrollTo(0,sc);
+}
+function syncPill(){
+  if(CDB){if(SY.state==="busy")return`<span class="pill">Saving…</span>`;if(SY.state==="error")return`<button class="pill bad" data-act="syncNow">Not saved, tap to retry</button>`;return`<span class="pill ok">✓ Saved</span>`}
+  if(!SY.token||!SY.gist)return`<button class="pill" data-act="tab" data-v="Settings">Not shared yet</button>`;
+  if(SY.state==="busy")return`<span class="pill">Syncing…</span>`;
+  if(SY.state==="error")return`<button class="pill bad" data-act="syncNow">Sync failed, tap to retry</button>`;
+  return`<button class="pill ok" data-act="syncNow">✓ Synced${SY.last?" "+new Date(SY.last).toLocaleTimeString([], {hour:"numeric",minute:"2-digit"}):""}</button>`;
+}
+
+function viewWeek(){
+  const W=S.week,sun=addDays(W,6),thisMon=monday(S.today),past=W<thisMon,isThis=W===thisMon;
+  const title=isThis?"This week":W===addDays(thisMon,7)?"Next week":W===addDays(thisMon,-7)?"Last week":`Week of ${dm(W)}`;
+  const{due,done}=weekItems(W);
+  let h=`<div class="head"><h1>${title}</h1>${syncPill()}</div>
+  <div class="weekbar"><button class="btn ghost icon" data-act="wk" data-v="-7" aria-label="Previous week">‹</button>
+   <span class="range">${short(W)} – ${short(sun)}</span>
+   <button class="btn ghost icon" data-act="wk" data-v="7" aria-label="Next week">›</button>
+   ${isThis?"":`<button class="btn blue slim" data-act="wkNow">Now</button>`}</div>`;
+  if(!tasks().length)return h+`<div class="card empty"><h2>No jobs yet</h2><div class="muted">Add the jobs around the house you want to keep on top of.</div><button class="btn pink" data-act="newTask">+ Add a job</button></div>`;
+  const total=due.length+done.length;
+  if(!past){
+    h+=`<div class="row"><div class="grow muted small">${total?`${done.length} of ${total} done${due.length?"":". All done!"}`:"Nothing due this week"}</div><button class="btn pink slim" data-act="addToWeek">+ Add a job</button></div>
+    <div class="progress" role="progressbar" aria-label="Jobs done this week" aria-valuenow="${done.length}" aria-valuemax="${total}"><div style="width:${total?done.length/total*100:0}%"></div></div>`;
+    const never=tasks().filter(t=>!lastDone(t.id)).length;
+    if(never>=3&&isThis)h+=`<div class="status">${never} jobs have no record yet, so they all show as due. Open each one and record roughly when it was last done, and the schedule sorts itself out.</div>`;
+    if(W>thisMon&&due.length)h+=`<div class="muted small">Forecast, based on when each job was last done. Overdue jobs carry forward until they're ticked.</div>`;
+  }else if(!done.length){
+    h+=`<div class="card empty muted">Nothing was recorded this week.</div>`;
+  }
+  const canTick=W<=thisMon;
+  const groups=[[],[],[],[],[],[],[],[]];
+  for(const it of due){const d=it.p&&it.p.day!=null?it.p.day:7;groups[d].push(it)}
+  const sortDue=(a,b)=>(a.r.due||"9999").localeCompare(b.r.due||"9999")||a.t.name.localeCompare(b.t.name);
+  for(let d=0;d<8;d++){
+    if(!groups[d].length)continue;
+    groups[d].sort(sortDue);
+    const lab=d<7?`${DAY[d]} ${dm(addDays(W,d))}${addDays(W,d)===S.today?" · today":""}`:"Not planned yet";
+    h+=`<div class="label section"><span>${lab}</span><span>${plural(groups[d].length,"job")}</span></div>`+groups[d].map(it=>rowDue(it,canTick)).join("");
+  }
+  if(done.length)h+=`<div class="label section"><span>Done this week</span><span>${done.length}</span></div>`+done.map(rowDone).join("");
+  return h;
+}
+function peopleChips(ids){return(ids||[]).filter(id=>D.people[id]&&!D.people[id].del).map(id=>`<span class="chip c${personC(id)}">${esc(D.people[id].name)}</span>`).join("")}
+function rowDue(it,canTick){
+  const{t,p,extra}=it,c=catOf(t.cat)[2],last=lastDone(t.id),[st,cls]=statusOf(t);
+  const bits=[extra?`<span class="due">Added to this week</span>`:`<span class="${cls}">${st}</span>`];
+  if(last)bits.push(`last done ${dm(last)}`);
+  const chips=(p&&p.day!=null?`<span class="chip day">${DAY[p.day]}</span>`:"")+peopleChips(p&&p.people);
+  return`<div class="card c${c}"><div class="row">
+   ${canTick?`<button class="tick" data-act="tick" data-t="${t.id}" aria-pressed="false" aria-label="Mark ${esc(t.name)} done today">${TICK}</button>`:`<span class="dot" aria-hidden="true"></span>`}
+   <button class="grow rowbtn" data-act="open" data-t="${t.id}"><div class="name">${esc(t.name)}</div><div class="muted small">${bits.join(" · ")}</div>${chips?`<div class="chips">${chips}</div>`:""}</button>
+  </div></div>`;
+}
+function rowDone(x){
+  const t=D.tasks[x.task],c=catOf(t.cat)[2],p=planOf(monday(x.date),t.id);
+  return`<div class="card c${c} faded"><div class="row">
+   <button class="tick" data-act="untick" data-id="${x.id}" aria-pressed="true" aria-label="Undo ${esc(t.name)}">${TICK}</button>
+   <button class="grow rowbtn" data-act="open" data-t="${t.id}"><div class="name">${esc(t.name)}</div><div class="muted small">${x.skip?"Skipped":"Done"} ${short(x.date)}</div>${p&&p.people&&p.people.length?`<div class="chips">${peopleChips(p.people)}</div>`:""}</button>
+  </div></div>`;
+}
+
+function viewTasks(){
+  let h=`<div class="head"><h1>Tasks</h1><button class="btn pink" data-act="newTask">+ Add</button></div>
+  <div class="muted small">Every job and how often it comes round. Tap one to edit it or fix its history.</div>`;
+  const all=tasks();
+  if(!all.length)return h+`<div class="card empty muted">No jobs yet.</div>`;
+  for(const[cid,cname,c]of CATS){
+    const list=all.filter(t=>catOf(t.cat)[0]===cid);if(!list.length)continue;
+    h+=`<div class="label section"><span>${cname}</span></div>`;
+    h+=list.map(t=>{const[st,cls]=statusOf(t),last=lastDone(t.id);
+      return`<div class="card c${c}"><button class="rowbtn" data-act="edit" data-t="${t.id}"><div class="row"><span class="dot" style="margin:0" aria-hidden="true"></span><div class="grow">
+       <div class="name">${esc(t.name)}</div><div class="muted small">${freqNow(t)} · <span class="${cls}">${st}</span>${last?` · last ${dm(last)}`:""}</div></div></div></button></div>`}).join("");
+  }
+  return h;
+}
+
+function viewHistory(){
+  const all=Object.values(D.done).filter(x=>!x.del&&D.tasks[x.task]).sort((a,b)=>b.date.localeCompare(a.date)||(b.u||0)-(a.u||0));
+  let h=`<div class="head"><h1>History</h1></div>`;
+  if(!all.length)return h+`<div class="card empty muted">Nothing recorded yet. Ticked jobs show up here.</div>`;
+  let wk="";
+  for(const x of all.slice(0,S.histLimit)){
+    const w=monday(x.date);
+    if(w!==wk){wk=w;h+=`<div class="label section"><span>Week of ${short(w)}</span></div>`}
+    const t=D.tasks[x.task],c=catOf(t.cat)[2];
+    h+=`<div class="card c${c}"><button class="rowbtn" data-act="edit" data-t="${t.id}"><div class="row"><span class="dot" style="margin:0" aria-hidden="true"></span>
+      <div class="grow"><div class="name">${esc(t.name)}${t.del?" (deleted)":""}</div><div class="muted small">${x.skip?"Skipped":"Done"} ${short(x.date)}</div></div></div></button></div>`;
+  }
+  if(all.length>S.histLimit)h+=`<button class="btn ghost" data-act="more">Show more</button>`;
+  return h;
+}
+
+function viewSettings(){
+  const ps=people(),on=SY.token&&SY.gist;
+  let h=`<div class="head"><h1>Settings</h1></div>
+  <div class="card"><h2>People</h2><div class="muted small">Who can be put on a job each week. Jobs aren't tied to anyone permanently.</div>
+   <div class="chips" style="margin-top:10px">${ps.map(p=>`<span class="chip c${p.c}">${esc(p.name)} <button class="linkish" style="min-height:28px;padding:0 2px" data-act="rmPerson" data-p="${p.id}" aria-label="Remove ${esc(p.name)}">✕</button></span>`).join("")||`<span class="muted small">No one added yet.</span>`}</div>
+   <div class="row" style="margin-top:10px"><input class="grow" type="text" id="pName" maxlength="30" placeholder="Name, e.g. Andrew" aria-label="New person's name"><button class="btn" data-act="addPerson">Add</button></div></div>
+  <div class="card"><h2>Share between phones</h2>`;
+  if(CDB){
+    h+=`<div class="muted small" style="margin-top:6px">Trial version: everything saves to your Claude account, so it's on any device where you're signed in to Claude. To share with someone who doesn't use Claude, move to the GitHub version: <b>Copy backup</b> here, then <b>Paste a backup</b> there.</div>`;
+  }else if(on){
+    h+=`<div class="muted small" style="margin:6px 0 10px">This phone is linked to your shared Dust Hunter data. Changes sync automatically when you open the app and after each change.</div>
+     <div class="status ${SY.state==="error"?"bad":""}">${SY.state==="error"?esc(SY.msg):SY.last?`Last synced ${new Date(SY.last).toLocaleString([], {weekday:"short",hour:"numeric",minute:"2-digit"})}`:"Not synced yet"}</div>
+     <div class="foot" style="margin-top:10px;justify-content:flex-start"><button class="btn" data-act="syncNow">Sync now</button><button class="btn blue" data-act="shareSetup">Send setup link to another phone</button></div>
+     <div class="muted small" style="margin-top:8px">Use the same link on any phone or laptop. It contains your access key, so send it only to family, privately, and keep a copy somewhere safe (e.g. a private note): it's how any device reconnects if its browser is cleared.</div>
+     <div class="foot" style="margin-top:8px;justify-content:flex-start"><button class="btn ghost slim" data-act="unlink">${S.confirmDel==="unlink"?"Tap again to unlink":"Unlink this phone"}</button></div>`;
+  }else{
+    h+=`<div class="muted small" style="margin:6px 0 10px">Paste a GitHub access key (classic token with only the <b>gist</b> box ticked). Then tap <b>Create shared data</b> on the first phone, and send the setup link to the second phone.</div>
+     <div class="field"><label class="label" for="sToken">GitHub access key</label><input type="password" id="sToken" autocomplete="off" value="${esc(SY.token)}" placeholder="ghp_…"></div>
+     <div class="field" style="margin-top:8px"><label class="label" for="sGist">Shared data ID (only if it already exists)</label><input type="text" id="sGist" autocomplete="off" value="${esc(SY.gist)}" placeholder="Leave blank on the first phone"></div>
+     <div class="err" id="sErr">${SY.state==="error"?esc(SY.msg):""}</div>
+     <div class="foot" style="justify-content:flex-start"><button class="btn" data-act="createGist">Create shared data</button><button class="btn ghost" data-act="linkGist">Link to existing</button></div>`;
+  }
+  h+=`</div>
+  <div class="card"><h2>Backup</h2><div class="muted small" style="margin:6px 0 10px">Copy or save everything, and load it back in elsewhere. Loading merges with what's here; it never wipes anything.</div>
+   <div class="foot" style="justify-content:flex-start"><button class="btn ghost" data-act="copyBackup">Copy backup</button><button class="btn ghost" data-act="pasteBackup">Paste a backup</button>
+   ${CDB?"":`<button class="btn ghost" data-act="export">Save to file</button><button class="btn ghost" data-act="import">Load file</button>`}</div></div>
+  <div class="muted small" style="text-align:center;margin-top:6px">Dust Hunter ${VERSION} · weeks start Monday · seasons follow Sydney</div>`;
+  return h;
+}
+function viewAbout(){
+  const ps=people(),fb=Object.values(D.feedback).filter(f=>!f.del).sort((a,b)=>(a.done?1:0)-(b.done?1:0)||(b.created||0)-(a.created||0));
+  const open=fb.filter(f=>!f.done),email=metaGet().email||"";
+  const where=CDB?"your Claude account (trial version)":SY.token&&SY.gist?"a private GitHub Gist shared by your linked phones and laptops":"this browser only (not shared yet – see Settings)";
+  let h=`<div class="head"><h1>About</h1><span class="pill">v${VERSION}</span></div>
+  <div class="card"><h2>Dust Hunter</h2><div class="muted small" style="margin-top:4px">Keeps the jobs around the house on schedule: what's due this week, who's doing it, and when it was last done.</div>
+   <div class="label" style="margin-top:10px">Your data is saved in</div><div>${where}</div>
+   ${SY.token&&SY.gist&&!CDB?`<div class="muted small" style="margin-top:6px">GitHub keeps every earlier version of the data too, so a mistake can always be rolled back. Clearing the browser only removes this device's copy; tap the setup link again to reconnect.</div>`:""}</div>
+  <div class="card"><h2>Feedback & ideas</h2><div class="muted small" style="margin-top:4px">Write down anything to fix or add. Ideas are shared, so you'll both see the list.</div>
+   ${ps.length?`<div class="label" style="margin-top:10px">From</div><div class="who" id="fbWho">${ps.map(p=>`<button class="c${p.c}" data-act="fbWho" data-p="${p.id}" aria-pressed="${S.fbWho===p.id}">${esc(p.name)}</button>`).join("")}</div>`:""}
+   <textarea id="fbText" rows="3" maxlength="2000" style="margin-top:10px" placeholder="e.g. Let me sort the week by person" aria-label="Your feedback"></textarea>
+   <div class="foot" style="margin-top:8px"><button class="btn" data-act="fbAdd">Save idea</button></div>
+   ${open.length?`<div class="label section"><span>Open ideas</span><span>${open.length}</span></div>`:""}
+   ${fb.map(f=>`<div class="fbrow"><div class="grow" style="${f.done?"text-decoration:line-through;color:var(--muted)":""}"><div style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(f.text)}</div><div class="muted small">${f.by&&D.people[f.by]?esc(D.people[f.by].name)+" · ":""}${f.date?short(f.date):""}</div></div>
+     <button class="linkish" data-act="fbDone" data-id="${f.id}">${f.done?"Reopen":"Done"}</button><button class="linkish" data-act="fbDel" data-id="${f.id}" aria-label="Delete idea">✕</button></div>`).join("")}
+   ${open.length?`<div class="label" style="margin-top:12px">Send the open ideas</div>
+   <div class="foot" style="justify-content:flex-start"><button class="btn blue" data-act="fbCopy">Copy for Claude</button>${CDB?"":`<button class="btn ghost" data-act="fbEmail">Email them</button>`}</div>
+   <div class="muted small" style="margin-top:6px">Copy for Claude, then paste into your Dust Hunter chat to have the changes made.</div>`:""}
+   ${CDB?"":`<div class="field" style="margin-top:10px"><label class="label" for="fbEmail">Email ideas to</label><div class="row"><input class="grow" type="text" inputmode="email" id="fbEmail" value="${esc(email)}" placeholder="you@example.com"><button class="btn ghost slim" data-act="fbSaveEmail">Save</button></div>
+   <div class="muted small">Kept in your shared data, not in the app's code, so it isn't public.</div></div>`}
+  </div>
+  <div class="card"><h2>What's new</h2>${CHANGES.map(([v,d,items])=>`<div class="label section"><span>Version ${v}</span><span>${d}</span></div><ul style="margin:4px 0 0;padding-left:20px">${items.map(i=>`<li>${esc(i)}</li>`).join("")}</ul>`).join("")}</div>`;
+  return h;
+}
+function openIdeasText(){
+  const open=Object.values(D.feedback).filter(f=>!f.del&&!f.done).sort((a,b)=>(a.created||0)-(b.created||0));
+  return`Dust Hunter v${VERSION} – feedback (${open.length})\n\n`+open.map((f,i)=>`${i+1}. ${f.text}${f.by&&D.people[f.by]?` (${D.people[f.by].name})`:""}`).join("\n");
+}
+
+/* ===================== sheets ===================== */
+function openSheet(kind,arg){S.sheet={kind,arg};S.confirmDel=null;S.form=null;drawSheet(true)}
+function closeSheet(){S.sheet=null;$("sheet").hidden=true;$("sheet").innerHTML="";render(true)}
+function drawSheet(top){
+  if(!S.sheet)return;
+  const el=$("sheet"),old=el.querySelector(".panel"),sc=old&&!top?old.scrollTop:0;
+  const{kind,arg}=S.sheet;
+  const body=kind==="task"?sheetTask(arg):kind==="edit"?sheetEdit(arg):kind==="addWeek"?sheetAddWeek():"";
+  if(body===null){closeSheet();return}
+  el.innerHTML=`<div class="panel" role="dialog" aria-modal="true">${body}</div>`;el.hidden=false;
+  el.querySelector(".panel").scrollTop=sc;
+}
+function histHTML(t,limit){
+  const list=doneOf(t.id);
+  if(!list.length)return`<div class="muted small">No record yet.</div>`;
+  return`<div class="hist">${list.slice(0,limit).map(x=>`<div><span>${x.skip?"Skipped":"Done"} ${short(x.date)} ${x.date.slice(0,4)}</span><button class="linkish" data-act="rmDone" data-id="${x.id}" aria-label="Remove this entry">Remove</button></div>`).join("")}</div>${list.length>limit?`<div class="muted small">+ ${list.length-limit} older</div>`:""}`;
+}
+function sheetTask(tid){
+  const t=D.tasks[tid];if(!t||t.del)return null;
+  const W=S.week,past=W<monday(S.today),p=planOf(W,tid)||{day:null,people:[]},[st,cls]=statusOf(t),ps=people(),inWeek=weekItems(W).due.find(i=>i.t.id===tid);
+  let h=`<div class="row"><h2 class="grow">${esc(t.name)}</h2><button class="btn ghost slim" data-act="edit" data-t="${t.id}">Edit</button><button class="btn ghost slim" data-act="close">Close</button></div>
+  <div class="muted small">${freqNow(t)} · <span class="${cls}">${st}</span></div>`;
+  if(t.notes)h+=`<div class="notes">${esc(t.notes)}</div>`;
+  if(!past){
+    h+=`<div class="label">Plan for (week of ${dm(W)})</div><div class="days">${DAY.map((d,i)=>`<button data-act="planDay" data-t="${tid}" data-v="${i}" aria-pressed="${p.day===i}">${d}<small>${+addDays(W,i).slice(8)}</small></button>`).join("")}</div>
+    <div class="label">Who</div>${ps.length?`<div class="who">${ps.map(x=>`<button class="c${x.c}" data-act="planWho" data-t="${tid}" data-p="${x.id}" aria-pressed="${(p.people||[]).includes(x.id)}">${esc(x.name)}</button>`).join("")}</div>`
+      :`<div class="muted small">Add people in Settings to put names on jobs.</div>`}`;
+    if(!inWeek)h+=`<button class="btn blue" data-act="addExtra" data-t="${tid}">Add to this week anyway</button>`;
+    else if(inWeek.extra)h+=`<button class="btn ghost slim" style="align-self:flex-start" data-act="rmExtra" data-t="${tid}">Take off this week</button>`;
+  }
+  h+=`<div class="label">Record it</div>
+  <div class="row"><input class="grow" type="date" id="doneDate" value="${S.today}" max="${S.today}" aria-label="Date done"><button class="btn" data-act="doneOn" data-t="${tid}">Done</button></div>
+  <button class="btn ghost" data-act="skipOn" data-t="${tid}">Skip this time (e.g. it rained)</button>
+  <div class="label">Recent</div>${histHTML(t,4)}`;
+  return h;
+}
+function sheetEdit(tid){
+  const isNew=!tid,t=isNew?{name:"",cat:"indoor",freq:{type:"fixed",days:7},notes:"",pair:""}:D.tasks[tid];
+  if(!t||(!isNew&&t.del))return null;
+  const f=t.freq,sf=f.type==="season",dv=s=>sf?+f[s]:+f.days;
+  const others=tasks().filter(x=>x.id!==tid);
+  let h=`<div class="row"><h2 class="grow">${isNew?"New job":"Edit job"}</h2><button class="btn ghost slim" data-act="close">Close</button></div>
+  <div class="field"><label class="label" for="fName">Name</label><input type="text" id="fName" maxlength="60" value="${esc(t.name)}" placeholder="e.g. Clean gutters"></div>
+  <div class="field"><label class="label" for="fCat">Area</label><select id="fCat">${CATS.map(c=>`<option value="${c[0]}" ${catOf(t.cat)[0]===c[0]?"selected":""}>${c[1]}</option>`).join("")}</select></div>
+  <div class="label">How often</div>
+  <div class="seg"><button data-act="mode" data-v="fixed" aria-pressed="${!sf}">Same all year</button><button data-act="mode" data-v="season" aria-pressed="${sf}">Changes with seasons</button></div>
+  <div id="mFixed" ${sf?"hidden":""}><div class="field"><label class="label" for="fDays">Every how many days?</label><input type="number" id="fDays" inputmode="numeric" min="1" max="730" value="${sf?7:+f.days}"></div>
+   <div class="chips">${[[7,"Weekly"],[14,"Fortnightly"],[30,"Monthly"],[91,"Quarterly"],[182,"6 months"],[365,"Yearly"]].map(([n,l])=>`<button class="chip" data-act="quickDays" data-v="${n}">${l}</button>`).join("")}</div></div>
+  <div id="mSeason" ${sf?"":"hidden"}><div class="muted small">Days between each time. Enter 0 to switch it off for that season.</div>
+   <div class="grid2" style="margin-top:6px">${SORDER.map(s=>`<div class="field"><label class="label" for="f_${s}">${SEASONS[s]} <span class="muted">(${({su:"Dec–Feb",au:"Mar–May",wi:"Jun–Aug",sp:"Sep–Nov"})[s]})</span></label><input type="number" id="f_${s}" inputmode="numeric" min="0" max="730" value="${sf?dv(s):+f.days}"></div>`).join("")}</div></div>
+  <div class="field"><label class="label" for="fNotes">Notes and tips</label><textarea id="fNotes" maxlength="1000">${esc(t.notes||"")}</textarea></div>
+  <div class="field"><label class="label" for="fPair">When ticked, offer to tick this too (optional)</label><select id="fPair"><option value="">Nothing</option>${others.map(o=>`<option value="${o.id}" ${t.pair===o.id?"selected":""}>${esc(o.name)}</option>`).join("")}</select></div>
+  <div class="err" id="fErr"></div>
+  <div class="foot">${isNew?"":`<button class="btn danger" data-act="delTask" data-t="${tid}">${S.confirmDel===tid?"Tap again to delete":"Delete"}</button>`}<button class="btn" data-act="saveTask" data-t="${tid||""}">Save</button></div>`;
+  if(!isNew){
+    h+=`<div class="label">When it was done</div>
+    <div class="row"><input class="grow" type="date" id="pastDate" value="${S.today}" max="${S.today}" aria-label="Date done"><button class="btn blue" data-act="addPast" data-t="${tid}">Add date</button></div>
+    ${histHTML(t,20)}`;
+  }
+  return h;
+}
+function sheetAddWeek(){
+  const W=S.week,inWeek=new Set(weekItems(W).due.map(i=>i.t.id));
+  const list=tasks().filter(t=>!inWeek.has(t.id)).sort((a,b)=>(dueOf(a).due||"9999").localeCompare(dueOf(b).due||"9999"));
+  let h=`<div class="row"><h2 class="grow">Add a job to this week</h2><button class="btn ghost slim" data-act="close">Close</button></div>
+  <div class="muted small">Not due yet, but you want to get it done anyway. Sorted by what's coming up soonest.</div>`;
+  if(!list.length)h+=`<div class="card empty muted">Every job is already on this week.</div>`;
+  h+=list.map(t=>{const[st,cls]=statusOf(t);return`<div class="card c${catOf(t.cat)[2]}"><button class="rowbtn" data-act="addExtra" data-t="${t.id}"><div class="row"><span class="dot" style="margin:0" aria-hidden="true"></span><div class="grow"><div class="name">${esc(t.name)}</div><div class="muted small"><span class="${cls}">${st}</span></div></div><span class="chip">Add</span></div></button></div>`}).join("");
+  h+=`<button class="btn ghost" data-act="newTask">+ Create a new job</button>`;
+  return h;
+}
+
+/* ===================== actions ===================== */
+let toastTimer;
+function toast(msg,acts=[]){
+  const el=$("toast");S.toastActs=acts;
+  el.innerHTML=`<span style="flex:1;min-width:0">${esc(msg)}</span>${acts.map((a,i)=>`<button class="tbtn" data-act="toastAct" data-i="${i}">${esc(a.label)}</button>`).join("")}`;
+  el.hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>{el.hidden=true},acts.length?8000:3000);
+}
+function complete(tid,date,skip){
+  const t=D.tasks[tid],id=uid();put("done",{id,task:tid,date,skip:!!skip});
+  const acts=[{label:"Undo",fn:()=>{put("done",{...D.done[id],del:true});refresh()}}];
+  const pr=t.pair&&D.tasks[t.pair]&&!D.tasks[t.pair].del?D.tasks[t.pair]:null;
+  if(pr&&!skip&&lastDone(pr.id)!==date)acts.push({label:`+ ${pr.name}`,fn:()=>{put("done",{id:uid(),task:pr.id,date});refresh();toast(`${pr.name} ticked too`)}});
+  toast(`${t.name}: ${skip?"skipped":"done"}${date===S.today?"":" "+short(date)}`,acts);
+}
+function refresh(){render(true);if(S.sheet)drawSheet()}
+function readForm(){
+  const v=id=>$(id).value,name=v("fName").trim(),mode=$("mFixed").hidden?"season":"fixed",err=m=>{$("fErr").textContent=m;return null};
+  if(!name)return err("Give the job a name.");
+  const n=x=>{const k=Math.round(+x);return Number.isFinite(k)?k:NaN};
+  let freq;
+  if(mode==="fixed"){const d=n(v("fDays"));if(!(d>=1&&d<=730))return err("Days between should be 1 to 730.");freq={type:"fixed",days:d}}
+  else{freq={type:"season"};for(const s of SORDER){const d=n(v("f_"+s));if(!(d>=0&&d<=730))return err(`${SEASONS[s]}: enter 0 to 730 days.`);freq[s]=d}
+    if(SORDER.every(s=>!freq[s]))return err("Turn it on for at least one season.")}
+  return{name,cat:v("fCat"),freq,notes:v("fNotes").trim(),pair:v("fPair")};
+}
+
+document.addEventListener("click",e=>{
+  if(e.target.id==="sheet"){closeSheet();return}
+  const b=e.target.closest("[data-act]");if(!b)return;
+  const a=b.dataset.act,tid=b.dataset.t;
+  if(a!=="delTask"&&a!=="unlink"&&S.confirmDel){S.confirmDel=null}
+  switch(a){
+    case"tab":S.tab=b.dataset.v;render(true);window.scrollTo(0,0);break;
+    case"wk":S.week=addDays(S.week,+b.dataset.v);render(true);break;
+    case"wkNow":S.week=monday(S.today);render(true);break;
+    case"tick":complete(tid,S.today,false);render(true);break;
+    case"untick":{const x=D.done[b.dataset.id];if(x){put("done",{...x,del:true});toast(`${D.tasks[x.task].name}: tick removed`,[{label:"Put back",fn:()=>{put("done",{...D.done[x.id],del:false});refresh()}}])}render(true);break}
+    case"open":openSheet("task",tid);break;
+    case"edit":openSheet("edit",tid);break;
+    case"newTask":openSheet("edit",null);break;
+    case"addToWeek":openSheet("addWeek");break;
+    case"close":closeSheet();break;
+    case"planDay":{const p=planOf(S.week,tid),d=+b.dataset.v;setPlan(S.week,tid,{day:p&&p.day===d?null:d});refresh();break}
+    case"planWho":{const p=planOf(S.week,tid),cur=new Set(p?p.people:[]),pid=b.dataset.p;cur.has(pid)?cur.delete(pid):cur.add(pid);setPlan(S.week,tid,{people:[...cur]});refresh();break}
+    case"addExtra":setPlan(S.week,tid,{extra:true});if(S.sheet&&S.sheet.kind==="addWeek")toast(`${D.tasks[tid].name} added to this week`);refresh();break;
+    case"rmExtra":setPlan(S.week,tid,{extra:false});refresh();break;
+    case"doneOn":case"skipOn":{const d=$("doneDate").value||S.today;if(d>S.today){toast("That date is in the future.");break}complete(tid,d,a==="skipOn");closeSheet();break}
+    case"addPast":{const d=$("pastDate").value;if(!d||d>S.today){toast("Pick a date up to today.");break}put("done",{id:uid(),task:tid,date:d,skip:false});toast(`Recorded ${short(d)}`);refresh();break}
+    case"rmDone":{const x=D.done[b.dataset.id];if(x){put("done",{...x,del:true});toast("Entry removed",[{label:"Undo",fn:()=>{put("done",{...D.done[x.id],del:false});refresh()}}])}refresh();break}
+    case"mode":{const s=b.dataset.v==="season";$("mFixed").hidden=s;$("mSeason").hidden=!s;
+      for(const x of b.parentNode.children)x.setAttribute("aria-pressed",x===b);
+      if(s){const d=$("fDays").value;for(const k of SORDER)if(!$("f_"+k).value)$("f_"+k).value=d}break}
+    case"quickDays":$("fDays").value=b.dataset.v;break;
+    case"saveTask":{const f=readForm();if(!f)break;const id=tid||"t-"+uid(),old=D.tasks[id]||{};put("tasks",{...old,...f,id,del:false});toast(tid?"Saved":`${f.name} added`);
+      if(!tid&&S.tab==="Week")setPlan(S.week,id,{extra:false});closeSheet();break}
+    case"delTask":if(S.confirmDel!==tid){S.confirmDel=tid;drawSheet();break}
+      put("tasks",{...D.tasks[tid],del:true});S.confirmDel=null;closeSheet();toast("Job deleted",[{label:"Undo",fn:()=>{put("tasks",{...D.tasks[tid],del:false});refresh()}}]);break;
+    case"more":S.histLimit+=60;render(true);break;
+    case"addPerson":{const n=$("pName").value.trim();if(!n)break;const used=people().map(p=>p.c),c=[1,2,3,4,0,6,7,8,9,5].find(x=>!used.includes(x))??people().length%10;
+      put("people",{id:"p-"+uid(),name:n,c,created:Date.now()});render(true);break}
+    case"rmPerson":{const p=D.people[b.dataset.p];put("people",{...p,del:true});toast(`${p.name} removed`,[{label:"Undo",fn:()=>{put("people",{...D.people[p.id],del:false});refresh()}}]);render(true);break}
+    case"createGist":setupSync(true);break;
+    case"linkGist":setupSync(false);break;
+    case"syncNow":if(!SY.token||!SY.gist){S.tab="Settings";render(true)}else sync(true);break;
+    case"shareSetup":shareSetup();break;
+    case"unlink":if(S.confirmDel!=="unlink"){S.confirmDel="unlink";render(true);break}
+      S.confirmDel=null;SY={token:"",gist:"",last:0,state:"",msg:""};saveSync();toast("This phone is unlinked. Your data stays here.");render(true);break;
+    case"export":exportData();break;
+    case"fbWho":S.fbWho=S.fbWho===b.dataset.p?null:b.dataset.p;for(const x of b.parentNode.children)x.setAttribute("aria-pressed",x.dataset.p===S.fbWho);break;
+    case"fbAdd":{const t=$("fbText").value.trim();if(!t){$("fbText").focus();break}put("feedback",{id:"f-"+uid(),text:t,by:S.fbWho||"",date:S.today,created:Date.now(),done:false});toast("Idea saved");render(true);break}
+    case"fbDone":{const f=D.feedback[b.dataset.id];put("feedback",{...f,done:!f.done});render(true);break}
+    case"fbDel":{const f=D.feedback[b.dataset.id];put("feedback",{...f,del:true});toast("Idea deleted",[{label:"Undo",fn:()=>{put("feedback",{...D.feedback[f.id],del:false});refresh()}}]);render(true);break}
+    case"fbCopy":{const txt=openIdeasText();navigator.clipboard.writeText(txt).then(()=>toast("Copied. Paste it into your Dust Hunter chat with Claude."),()=>openRaw(txt,"Feedback","Select all of this and copy it."));break}
+    case"fbSaveEmail":{const v=$("fbEmail").value.trim();if(v&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)){toast("That email address doesn't look right.");break}put("meta",{...metaGet(),id:"settings",email:v});toast(v?"Email saved":"Email cleared");render(true);break}
+    case"fbEmail":{const to=metaGet().email;if(!to){toast("Add the email address below first.");$("fbEmail").focus();break}
+      location.href=`mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent("Dust Hunter feedback")}&body=${encodeURIComponent(openIdeasText())}`;break}
+    case"copyBackup":{const txt=JSON.stringify({v:1,...D});navigator.clipboard.writeText(txt).then(()=>toast("Backup copied. Paste it into the other version, or a note to keep."),()=>openRaw(txt,"Backup","Select all of this, copy it, and keep it somewhere safe."));break}
+    case"pasteBackup":S.sheet={kind:"raw"};$("sheet").innerHTML=`<div class="panel" role="dialog" aria-modal="true"><div class="row"><h2 class="grow">Paste a backup</h2><button class="btn ghost slim" data-act="close">Close</button></div>
+      <div class="muted small">Paste the backup text. It merges with what's here.</div><textarea id="pasteBox" rows="6" aria-label="Backup text"></textarea><div class="err" id="pasteErr"></div><div class="foot"><button class="btn" data-act="loadPaste">Load</button></div></div>`;$("sheet").hidden=false;break;
+    case"loadPaste":try{const x=JSON.parse($("pasteBox").value);if(!x||!x.tasks)throw 0;D=merge(D,normal(x));writeJSON(LS,D);queueSync();closeSheet();toast("Backup loaded")}catch(err){$("pasteErr").textContent="That isn't a Dust Hunter backup. Check the whole text was pasted."}break;
+    case"import":$("importFile").click();break;
+    case"toastAct":{const f=S.toastActs[+b.dataset.i];$("toast").hidden=true;if(f)f.fn();break}
+  }
+});
+document.addEventListener("keydown",e=>{
+  if(e.key==="Escape"&&S.sheet)closeSheet();
+  if(e.key==="Enter"&&e.target.id==="pName"){e.preventDefault();document.querySelector('[data-act="addPerson"]').click()}
+});
+
+/* ===================== backup ===================== */
+function exportData(){
+  const blob=new Blob([JSON.stringify({v:1,...D},null,1)],{type:"application/json"}),a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);a.download=`dust-hunter-backup-${S.today}.json`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+}
+$("importFile").addEventListener("change",async e=>{
+  const f=e.target.files[0];e.target.value="";if(!f)return;
+  try{const x=JSON.parse(await f.text());if(!x||!x.tasks)throw 0;D=merge(D,normal(x));writeJSON(LS,D);queueSync();toast("Backup loaded");render(true)}
+  catch(err){toast("That file isn't a Dust Hunter backup.")}
+});
+
+/* ===================== sync through a private GitHub Gist ===================== */
+async function gh(path,opt={}){
+  let r;
+  try{r=await fetch("https://api.github.com"+path,{...opt,cache:"no-store",headers:{Authorization:"Bearer "+SY.token,Accept:"application/vnd.github+json",...(opt.body?{"Content-Type":"application/json"}:{})}})}
+  catch(e){throw new Error("Can't reach GitHub. Check your connection; it'll try again by itself.")}
+  if(r.status===401)throw new Error("GitHub didn't accept the access key. Check it was copied fully and has the gist box ticked.");
+  if(r.status===404)throw new Error("Shared data not found. Check the ID, and that the key belongs to the same GitHub account.");
+  if(r.status===403||r.status===429)throw new Error("GitHub is limiting requests right now. Try again in a few minutes.");
+  if(!r.ok)throw new Error(`GitHub error ${r.status}. Try again shortly.`);
+  return r.json();
+}
+let syncing=false,again=false,syncTimer=null;
+/* Trial mode: when opened as a private page inside Claude, everything is saved to the Claude account instead of GitHub. */
+let CDB=null,cWriting=false,cAgain=false;
+async function claudeSave(){
+  if(cWriting){cAgain=true;return}
+  cWriting=true;SY.state="busy";
+  try{do{cAgain=false;await CDB.doc("state/main").set({json:JSON.stringify({v:1,...D})})}while(cAgain);SY.state="ok";SY.last=Date.now()}
+  catch(e){SY.state="error";SY.msg=e&&e.code==="quota_exceeded"?"Storage is full.":"Couldn't save to Claude. Check your connection."}
+  finally{cWriting=false;if(!S.sheet)render()}
+}
+async function startClaude(){
+  const use=window.claude&&window.claude.use;if(!use)return;
+  const db=await window.claude.use("db").catch(()=>null);if(!db)return;
+  CDB=db;SY.state="busy";render(true);
+  db.collection("state").onSnapshot(snap=>{
+    let remote=empty();
+    for(const d of snap.docs)if(d.id==="main"){try{remote=normal(JSON.parse(d.data().json||"{}"))}catch(e){}}
+    const before=canon(D),m=merge(D,remote);D=m;writeJSON(LS,D);
+    if(canon(m)!==canon(merge(remote,empty())))claudeSave();else if(!cWriting){SY.state="ok";SY.last=Date.now()}
+    if(canon(m)!==before&&S.sheet&&S.sheet.kind!=="edit")drawSheet();
+    render();
+  },()=>{SY.state="error";SY.msg="Lost the connection to Claude. Reload the page.";render()});
+}
+function queueSync(){
+  if(CDB){clearTimeout(syncTimer);syncTimer=setTimeout(claudeSave,600);return}
+  if(!SY.token||!SY.gist)return;clearTimeout(syncTimer);syncTimer=setTimeout(()=>sync(false),1200)}
+async function sync(loud){
+  if(CDB){if(loud)claudeSave();return}
+  if(!SY.token||!SY.gist)return;
+  if(syncing){again=true;return}
+  syncing=true;SY.state="busy";if(!S.sheet)render();
+  try{
+    do{again=false;
+      const g=await gh("/gists/"+SY.gist),f=g.files&&g.files[FILE];
+      let remote=empty();
+      if(f){const txt=f.truncated?await (await fetch(f.raw_url,{cache:"no-store"})).text():f.content;remote=normal(JSON.parse(txt||"{}"))}
+      const before=canon(D),m=merge(D,remote),out=canon(m);
+      if(out!==canon(merge(remote,empty())))await gh("/gists/"+SY.gist,{method:"PATCH",body:JSON.stringify({files:{[FILE]:{content:JSON.stringify({v:1,...m})}}})});
+      D=m;writeJSON(LS,D);
+      if(out!==before){if(S.sheet&&S.sheet.kind!=="edit")drawSheet()}
+    }while(again);
+    SY.last=Date.now();SY.state="ok";SY.msg="";saveSync();if(loud)toast("Synced");
+  }catch(e){SY.state="error";SY.msg=e.message||"Sync failed.";if(loud)toast(SY.msg)}
+  finally{syncing=false;render()}
+}
+async function setupSync(create){
+  const tok=($("sToken").value||"").trim(),gid=($("sGist").value||"").trim().replace(/^.*\//,"");
+  const err=m=>{$("sErr").textContent=m};
+  if(!tok)return err("Paste your GitHub access key first.");
+  SY.token=tok;
+  try{
+    if(create){
+      err("Creating…");
+      const g=await gh("/gists",{method:"POST",body:JSON.stringify({description:"Dust Hunter shared data",public:false,files:{[FILE]:{content:JSON.stringify({v:1,...D})}}})});
+      SY.gist=g.id;
+    }else{if(!gid)return err("Paste the shared data ID, or tap Create shared data.");SY.gist=gid}
+    saveSync();await sync(false);
+    if(SY.state==="error"){err(SY.msg);SY.gist="";saveSync();return}
+    toast(create?"Shared data created. Now send the setup link to the other phone.":"Linked. This phone now shares the same jobs.");render(true);
+  }catch(e){SY.state="";err(e.message);SY.gist="";saveSync()}
+}
+async function shareSetup(){
+  const url=location.href.split("#")[0]+"#setup="+btoa(JSON.stringify({t:SY.token,g:SY.gist}));
+  try{if(navigator.share){await navigator.share({title:"Dust Hunter",text:"Open this on your phone to share our house jobs list:",url});return}}catch(e){if(e&&e.name==="AbortError")return}
+  try{await navigator.clipboard.writeText(url);toast("Setup link copied. Paste it into a private message.")}
+  catch(e){openRaw(url)}
+}
+function openRaw(txt,title="Setup link",hint="Copy this and send it privately."){S.sheet={kind:"raw"};$("sheet").innerHTML=`<div class="panel"><div class="row"><h2 class="grow">${esc(title)}</h2><button class="btn ghost slim" data-act="close">Close</button></div><div class="muted small">${esc(hint)}</div><textarea readonly rows="6">${esc(txt)}</textarea></div>`;$("sheet").hidden=false}
+function readSetupHash(){
+  const m=location.hash.match(/^#setup=(.+)$/);if(!m)return;
+  history.replaceState(null,"",location.pathname+location.search);
+  try{const x=JSON.parse(atob(decodeURIComponent(m[1])));if(x.t&&x.g){SY.token=x.t;SY.gist=x.g;saveSync();toast("Linked to your shared Dust Hunter. Syncing…")}}
+  catch(e){toast("That setup link didn't work. Ask for it to be sent again.")}
+}
+
+/* ===================== start ===================== */
+document.addEventListener("visibilitychange",()=>{
+  if(document.visibilityState!=="visible")return;
+  const t=localToday();if(t!==S.today){const wasThis=S.week===monday(S.today);S.today=t;if(wasThis)S.week=monday(t);render(true)}
+  sync(false);
+});
+setInterval(()=>{if(document.visibilityState==="visible"&&!S.sheet)sync(false)},90000);
+readSetupHash();
+render(true);
+sync(false);
+startClaude();
+</script>
+</body>
+</html>
